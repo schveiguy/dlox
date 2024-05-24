@@ -1,0 +1,14 @@
+{
+	"authors": [
+		"Steven Schveighoffer"
+	],
+	"copyright": "Copyright © 2024, Steven Schveighoffer",
+	"dependencies": {
+		"io": "~>0.3.5",
+		"iopipe": "~>0.2.5"
+	},
+	"description": "First iteration of Lox interpreter",
+	"license": "BSL-1.0",
+	"name": "dlox1",
+    "targetType": "executable"
+}

@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/dlox1
+dlox1.so
+dlox1.dylib
+dlox1.dll
+dlox1.a
+dlox1.lib
+dlox1-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst

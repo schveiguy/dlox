@@ -1,0 +1,7 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"io": "0.3.5",
+		"iopipe": "0.2.5"
+	}
+}
