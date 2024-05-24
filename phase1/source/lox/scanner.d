@@ -1,6 +1,5 @@
 module lox.scanner;
 
-import lox.tokentype;
 import lox.token;
 import lox.lox;
 
@@ -99,7 +98,7 @@ class Scanner {
             } else if (isAlpha(c)) {
                 identifier();
             } else {
-                .error(line, "Unexpecterd chararacter.");
+                .error(line, "Unexpected chararacter.");
             }
             break;
         }

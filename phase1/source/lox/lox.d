@@ -2,71 +2,8 @@ module lox.lox;
 
 import lox.scanner;
 import lox.token;
+import lox.io;
 
-import iopipe.bufpipe;
-import iopipe.refc;
-import iopipe.valve;
-import iopipe.textpipe;
-import std.io;
-
-// helper utils
-char[] readText(string path) {
-    auto f = File(path).refCounted.bufd.assumeText;
-    f.ensureElems();
-    return f.window;
-}
-
-auto openStream(File dev)
-{
-    import std.algorithm : move;
-    // note, this returns a ref-counted struct, so there is no need to worry about copies.
-    return bufd!char.push!(p => p.arrayCastPipe!ubyte.outputPipe(move(dev).refCounted));
-}
-
-alias OutputStream = typeof(openStream(File.init));
-
-OutputStream outStream()
-{
-    import std.io.driver : stdout;
-    static OutputStream _stream;
-    //if(_stream.valve!OutputPipe.dev.allocated)
-    if(_stream is OutputStream.init) //hate to do it this way, above would be better
-    {
-        _stream = openStream(File(stdout));
-    }
-    return _stream;
-}
-
-OutputStream errStream()
-{
-    import std.io.driver : stderr;
-    static OutputStream _stream;
-    //if(_stream.valve!OutputPipe.dev.allocated)
-    if(_stream is OutputStream.init) //hate to do it this way, above would be better
-    {
-        _stream = openStream(File(stderr));
-    }
-    return _stream;
-}
-
-void write(OutputStream stream, const(char)[] data, bool doFlush = true)
-{
-    stream.ensureElems(data.length);
-    stream.window[0 .. data.length] = data;
-    stream.release(data.length);
-    if(doFlush)
-        stream.flush();
-}
-
-void writeln(OutputStream stream, const(char)[] data, bool doFlush = true)
-{
-    stream.ensureElems(data.length + 1);
-    stream.window[0 .. data.length] = data;
-    stream.window[data.length] = '\n';
-    stream.release(data.length + 1);
-    if(doFlush)
-        stream.flush();
-}
 
 /// begin Lox "class"
 
@@ -108,16 +45,15 @@ private void report(int line, string where, string message) {
 
 private void runPrompt() {
     import std.io.driver : stdin;
-    auto lines = File(stdin).refCounted.bufd.assumeText.byLine;
+    auto lines = inStream();
     auto output = outStream();
     for(;;) {
         output.write("> ");
-        if(lines.extend(0) == 0)
-            // no more data
+        auto l = lines.nextLine();
+        if(l.length == 0)
             break;
-        run(lines.window);
+        run(l);
         // processed the line, continue
-        lines.release(lines.window.length);
         hadError = false;
     }
 }
