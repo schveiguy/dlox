@@ -69,7 +69,7 @@ interface Visitor(R) {
 // the UFCS accept method (cannot be virtual).
 // this works by calling the real visitor, then wrapping it in a variant, and
 // unwrapping once it comes out.
-R accept(E, R)(E expr, Visitor!R visitor)
+R accept(R)(Expr expr, Visitor!R visitor)
 {
     static class VariantVisitor : Visitor!Variant {
         Visitor!R realVisitor;
