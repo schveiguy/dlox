@@ -3,7 +3,7 @@ module lox.token;
 import std.sumtype;
 
 // substitute for Java Object for literals
-alias Literal = SumType!(double, const(char)[], bool, typeof(null));
+alias Value = SumType!(double, const(char)[], bool, typeof(null));
 
 enum TokenType {
   // Single-character tokens.
@@ -30,11 +30,11 @@ class Token {
     const {
         TokenType type;
         char[] lexeme;
-        Literal literal;
+        Value literal;
         int line;
     }
 
-    this(TokenType type, const(char)[] lexeme, Literal literal, int line) {
+    this(TokenType type, const(char)[] lexeme, Value literal, int line) {
         this.type = type;
         this.lexeme = lexeme;
         this.literal = literal;

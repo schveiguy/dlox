@@ -43,7 +43,7 @@ class Scanner {
             scanToken();
         }
 
-        tokens ~= new Token(TokenType.EOF, "", Literal(null), line);
+        tokens ~= new Token(TokenType.EOF, "", Value(null), line);
         return tokens;
     }
 
@@ -112,7 +112,7 @@ class Scanner {
     private bool isDigit(char c) => c >= '0' && c <= '9';
     private bool isAlpha(char c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 
-    private void addToken(TokenType type, Literal literal = Literal(null)) {
+    private void addToken(TokenType type, Value literal = Value(null)) {
         tokens ~= new Token(type, source[start .. current], literal, line);
     }
 
@@ -137,7 +137,7 @@ class Scanner {
         advance();
 
         // trim the surrounding quotes
-        auto lit = Literal(source[start + 1 .. current - 1]);
+        auto lit = Value(source[start + 1 .. current - 1]);
         addToken(TokenType.STRING, lit);
     }
 
@@ -150,7 +150,7 @@ class Scanner {
         }
 
         import std.conv : to;
-        auto lit = Literal(source[start .. current].to!double);
+        auto lit = Value(source[start .. current].to!double);
         addToken(TokenType.NUMBER, lit);
     }
 
