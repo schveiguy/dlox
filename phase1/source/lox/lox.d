@@ -5,11 +5,18 @@ import lox.token;
 import lox.io;
 import lox.parser;
 import lox.expr;
+import lox.interpreter;
 
+Interpreter interpreter;
+static this()
+{
+    interpreter = new Interpreter;
+}
 
 /// begin Lox "class"
 
 bool hadError = false;
+bool hadRuntimeError = false;
 
 void run(const(char)[] script)
 {
@@ -21,8 +28,7 @@ void run(const(char)[] script)
 
     if(hadError) return;
 
-    auto output = outStream;
-    output.writeln(new AstPrinter().print(expression));
+    interpreter.interpret(expression);
 }
 
 private void runFile(string path) {
@@ -32,6 +38,7 @@ private void runFile(string path) {
     // Indicate an error in the exit code
     import core.stdc.stdlib : exit;
     if(hadError) exit(65);
+    if(hadRuntimeError) exit(70);
 }
 
 void error(int line, string message) {
@@ -44,6 +51,14 @@ void error(Token token, string message) {
     } else {
         report(token.line, " at '" ~ token.lexeme ~ "'", message);
     }
+}
+
+void runtimeError(RuntimeException error) {
+    // TODO: fix this
+    import std.conv : text;
+    errStream.writeln(error.message(), false);
+    errStream.writeln(text("[line ", error.token.line, "]"));
+    hadRuntimeError = true;
 }
 
 private void report(int line, const(char)[] where, string message) {
