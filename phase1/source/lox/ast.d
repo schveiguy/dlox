@@ -135,22 +135,25 @@ R accept(Base, R)(Base item, Visitor!(Base, R) visitor)
 
 // keep this up to date with all the types
 unittest {
-    static class intVisitor : Visitor!int {
+    static class intVisitor : Visitor!(Expr, int) {
         int visit(Binary) => 0;
         int visit(Grouping) => 1;
         int visit(Literal) => 2;
         int visit(Unary) => 3;
         int visit(Variable) => 4;
+        int visit(Assign) => 5;
     }
     auto l = new Literal(Value(null));
     auto t = new Token(TokenType.MINUS, "-", Value(null), 0);
     auto u = new Unary(t, l);
     auto b = new Binary(l, t, l);
     auto g = new Grouping(l);
-    auto v = new Variable(new Token(TokenType.IDENTIFIER, "a", Value(nul), 0), l);
+    auto v = new Variable(new Token(TokenType.IDENTIFIER, "a", Value(null), 0));
+    auto a = new Assign(new Token(TokenType.IDENTIFIER, "a", Value(null), 0), l);
     assert(b.accept(new intVisitor) == 0);
     assert(g.accept(new intVisitor) == 1);
     assert(l.accept(new intVisitor) == 2);
     assert(u.accept(new intVisitor) == 3);
     assert(v.accept(new intVisitor) == 4);
+    assert(a.accept(new intVisitor) == 5);
 }
