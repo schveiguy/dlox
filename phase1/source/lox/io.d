@@ -18,7 +18,7 @@ char[] readText(string path) {
 private auto openOutputStream(File dev)
 {
     // note, this returns a ref-counted struct, so there is no need to worry about copies.
-    return bufd!char.push!(p => p.arrayCastPipe!ubyte.outputPipe(dev.refCounted));
+    return bufd!char.push!(p => p.encodeText.outputPipe(dev.refCounted));
 }
 
 alias OutputStream = typeof(openOutputStream(File.init));

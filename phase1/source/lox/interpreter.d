@@ -28,11 +28,13 @@ class Interpreter : Visitor!Value {
 
     public Value visit(Unary expr) {
         auto val = evaluate(expr.right);
+        // must use double for negation. Just accepting a double means it will accept bools
+        static Value negDouble(T)(T v) if(is(T == double)) => Value(-v);
         with(TokenType) switch(expr.operator.type)
         {
             case MINUS:
                 return val.match!(
-                        (double v) => Value(-v),
+                        negDouble,
                         _ => throw new RuntimeException(expr.operator, "Operand must be an number.")
                         );
             case BANG:
