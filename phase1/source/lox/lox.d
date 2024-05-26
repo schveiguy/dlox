@@ -24,11 +24,11 @@ void run(const(char)[] script)
     auto scanner = new Scanner(script);
     Token[] tokens = scanner.scanTokens();
     Parser parser = new Parser(tokens);
-    Expr expression = parser.parse();
+    auto parsed = parser.parse();
 
     if(hadError) return;
 
-    interpreter.interpret(expression);
+    interpreter.interpret(parsed);
 }
 
 private void runFile(string path) {

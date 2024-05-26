@@ -6,16 +6,40 @@ import lox.io;
 
 import std.sumtype : match;
 
-class Interpreter : Visitor!(Expr, Value) {
+class Environment {
+    Value[const(char)[]] values;
+
+    ref Value get(Token name) {
+        if(auto v = name.lexeme in values) {
+            return *v;
+        }
+
+        throw new RuntimeException(name,
+                "Undefined variable '" ~ cast(string)name.lexeme ~ "'.");
+    }
+
+    void define(const(char)[] name, Value value) {
+        values[name] = value;
+    }
+}
+
+class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
+    Environment variables;
+
+    this()
+    {
+        variables = new Environment;
+    }
+
     // visitors
     public Value visit(Literal expr) {
         return expr.value;
     }
 
-    public void interpret(Expr expression) {
+    public void interpret(Stmt[] statements) {
         try {
-            Value value = evaluate(expression);
-            outStream.writeln(value.toString());
+            foreach(stmt; statements)
+                execute(stmt);
         } catch (RuntimeException error) {
             import lox.lox;
             runtimeError(error);
@@ -110,9 +134,43 @@ class Interpreter : Visitor!(Expr, Value) {
         }
     }
 
+    public Value visit(Variable expr) {
+        return variables.get(expr.name);
+    }
+
+    Value visit(Assign expr) {
+        auto val = evaluate(expr.value);
+        variables.get(expr.name) = val;
+        return val;
+    }
+
+    void visit(Expression stmt) {
+        auto val = evaluate(stmt.expression);
+    }
+
+    void visit(Print stmt) {
+        auto val = evaluate(stmt.expression);
+        import lox.io;
+        outStream.writeln(val.toString());
+    }
+
+    void visit(Var stmt) {
+        Value val = null;
+        if(stmt.initializer !is null)
+        {
+            val = evaluate(stmt.initializer);
+        }
+
+        variables.define(stmt.name.lexeme, val);
+    }
+
     // helper
     private Value evaluate(Expr expr) {
         return expr.accept(this);
+    }
+
+    private void execute(Stmt stmt) {
+        return stmt.accept(this);
     }
 }
 

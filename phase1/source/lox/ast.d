@@ -4,11 +4,11 @@ import std.variant;
 
 abstract class Expr {
     // hehe, have to be java-like for this one.
-    abstract Variant acceptVariant(Visitor!(Expr, Variant) visitor);
+    abstract Variant acceptHook(Visitor!(Expr, Variant) visitor);
 }
 
 // the D way ;)
-private string genStuff(T)()
+private string genStuff(T, string VisitorReturn)()
 {
     string ctorp = "this(";
     string ctorb = "{";
@@ -21,30 +21,61 @@ private string genStuff(T)()
     ctorp ~= ")";
     ctorb ~= "}";
 
-    return ctorp ~ ctorb ~ " override Variant acceptVariant(Visitor!(typeof(super), Variant) visitor) => visitor.visit(this);";
+    return ctorp ~ ctorb ~ " override " ~ VisitorReturn ~ " acceptHook(Visitor!(typeof(super), " ~ VisitorReturn ~ ") visitor) => visitor.visit(this);";
 }
 
 class Binary : Expr {
     Expr left;
     Token operator;
     Expr right;
-    mixin(genStuff!(typeof(this)));
+    mixin(genStuff!(typeof(this), "Variant"));
 }
 
 class Grouping : Expr {
     Expr expression;
-    mixin(genStuff!(typeof(this)));
+    mixin(genStuff!(typeof(this), "Variant"));
 }
 
 class Literal : Expr {
     Value value;
-    mixin(genStuff!(typeof(this)));
+    mixin(genStuff!(typeof(this), "Variant"));
 }
 
 class Unary : Expr {
     Token operator;
     Expr right;
-    mixin(genStuff!(typeof(this)));
+    mixin(genStuff!(typeof(this), "Variant"));
+}
+
+class Variable : Expr {
+    Token name;
+    mixin(genStuff!(typeof(this), "Variant"));
+}
+
+class Assign : Expr {
+    Token name;
+    Expr value;
+    mixin(genStuff!(typeof(this), "Variant"));
+}
+
+abstract class Stmt {
+    abstract void acceptHook(Visitor!(Stmt, void) visitor);
+}
+
+class Expression : Stmt {
+    Expr expression;
+    mixin(genStuff!(typeof(this), "void"));
+}
+
+class Print : Stmt {
+    Expr expression;
+    mixin(genStuff!(typeof(this), "void"));
+}
+
+class Var : Stmt {
+    Token name;
+    Expr initializer;
+    mixin(genStuff!(typeof(this), "void"));
 }
 
 // implement the visitor stuff
@@ -71,30 +102,35 @@ interface Visitor(Base, R) {
 // unwrapping once it comes out.
 R accept(Base, R)(Base item, Visitor!(Base, R) visitor)
 {
-    static class VariantVisitor : Visitor!(Base, Variant) {
-        Visitor!(Base, R) realVisitor;
-        this(Visitor!(Base, R) rv) {
-            this.realVisitor = rv;
-        }
-
-        static foreach(mem; __traits(allMembers, mod))
-        {
-            static if(is(__traits(getMember, mod, mem) == Base))
-            {
-                // skip the actual Base class
+    static if(is(R == void))
+        // void returns do not need a variant intermediate
+        return item.acceptHook(visitor);
+    else {
+        static class VariantVisitor : Visitor!(Base, Variant) {
+            Visitor!(Base, R) realVisitor;
+            this(Visitor!(Base, R) rv) {
+                this.realVisitor = rv;
             }
-            else static if(is(__traits(getMember, mod, mem) : Base))
+
+            static foreach(mem; __traits(allMembers, mod))
             {
-                Variant visit(__traits(getMember, mod, mem) item) {
-                    return Variant(realVisitor.visit(item));
+                static if(is(__traits(getMember, mod, mem) == Base))
+                {
+                    // skip the actual Base class
+                }
+                else static if(is(__traits(getMember, mod, mem) : Base))
+                {
+                    Variant visit(__traits(getMember, mod, mem) item) {
+                        return Variant(realVisitor.visit(item));
+                    }
                 }
             }
         }
-    }
 
-    scope vv = new VariantVisitor(visitor);
-    // call the variant visitor, then unwrap it.
-    return item.acceptVariant(vv).get!R;
+        scope vv = new VariantVisitor(visitor);
+        // call the variant visitor, then unwrap it.
+        return item.acceptHook(vv).get!R;
+    }
 }
 
 // keep this up to date with all the types
@@ -104,14 +140,17 @@ unittest {
         int visit(Grouping) => 1;
         int visit(Literal) => 2;
         int visit(Unary) => 3;
+        int visit(Variable) => 4;
     }
     auto l = new Literal(Value(null));
     auto t = new Token(TokenType.MINUS, "-", Value(null), 0);
     auto u = new Unary(t, l);
     auto b = new Binary(l, t, l);
     auto g = new Grouping(l);
+    auto v = new Variable(new Token(TokenType.IDENTIFIER, "a", Value(nul), 0), l);
     assert(b.accept(new intVisitor) == 0);
     assert(g.accept(new intVisitor) == 1);
     assert(l.accept(new intVisitor) == 2);
     assert(u.accept(new intVisitor) == 3);
+    assert(v.accept(new intVisitor) == 4);
 }

@@ -11,17 +11,75 @@ class Parser {
         this.tokens = tokens;
     }
 
-    Expr parse() {
+    Stmt[] parse() {
+        Stmt[] statements;
+        while(!isAtEnd())
+            statements ~= declaration();
+
+        return statements;
+    }
+
+    private Stmt declaration()
+    {
         try {
-            return expression();
-        } catch (ParseError error) {
+            if(match(TokenType.VAR))
+                return varDecl();
+            return statement();
+        } catch(ParseError error) {
+            synchronize();
             return null;
         }
     }
 
+    private Stmt varDecl()
+    {
+        auto name = consume(TokenType.IDENTIFIER, "Expect variable name.");
+        Expr initializer;
+        if(match(TokenType.EQUAL))
+        {
+            initializer = expression();
+        }
+        consume(TokenType.SEMICOLON, "Expect ';' after declaration.");
+        return new Var(name, initializer);
+    }
+
+    private Stmt statement() {
+        if(match(TokenType.PRINT)) return printStatement();
+        return expressionStatement();
+    }
+
+    private Stmt expressionStatement() {
+        auto expr = expression();
+        consume(TokenType.SEMICOLON, "Expect ';' after expression.");
+        return new Expression(expr);
+    }
+
+    private Stmt printStatement() {
+        auto expr = expression();
+        consume(TokenType.SEMICOLON, "Expect ';' after value.");
+        return new Print(expr);
+    }
 
     private Expr expression() {
-        return equality();
+        return assignment();
+    }
+
+    private Expr assignment() {
+        // parse the left expression
+        auto expr = equality();
+        if(match(TokenType.EQUAL))
+        {
+            Token equals = previous();
+            Expr value = assignment();
+            if(auto var = cast(Variable)expr)
+            {
+                return new Assign(var.name, value);
+            }
+
+            error(equals, "Invalid assignment target.");
+        }
+
+        return expr;
     }
 
     private Expr equality() {
@@ -85,6 +143,7 @@ class Parser {
         if(match(TokenType.TRUE)) return new Literal(Value(true));
         if(match(TokenType.FALSE)) return new Literal(Value(false));
         if(match(TokenType.NIL)) return new Literal(Value(null));
+        if(match(TokenType.IDENTIFIER)) return new Variable(previous());
 
         if(match(TokenType.NUMBER, TokenType.STRING))
             return new Literal(previous().literal);

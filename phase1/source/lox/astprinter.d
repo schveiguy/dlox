@@ -29,6 +29,14 @@ class AstPrinter : Visitor!(Expr, string) {
         return parenthesize(expr.operator.lexeme, expr.right);
     }
 
+    public string visit(Variable expr) {
+        return parenthesize("var " ~ expr.name.lexeme);
+    }
+
+    public string visit(Assign expr) {
+        return parenthesize("assign " ~ expr.name.lexeme, expr.value);
+    }
+
     private string parenthesize(const(char)[] name, Expr[] exprs...) {
         import std.array : Appender;
         Appender!string app;
