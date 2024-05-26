@@ -6,7 +6,7 @@ import lox.io;
 
 import std.sumtype : match;
 
-class Interpreter : Visitor!Value {
+class Interpreter : Visitor!(Expr, Value) {
     // visitors
     public Value visit(Literal expr) {
         return expr.value;

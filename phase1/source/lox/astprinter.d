@@ -1,7 +1,7 @@
 module lox.astprinter;
 import lox.ast;
 
-class AstPrinter : Visitor!string {
+class AstPrinter : Visitor!(Expr, string) {
     string print(Expr expr) {
         return expr.accept(this);
     }

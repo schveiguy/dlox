@@ -4,7 +4,7 @@ import std.variant;
 
 abstract class Expr {
     // hehe, have to be java-like for this one.
-    abstract Variant acceptVariant(Visitor!Variant visitor);
+    abstract Variant acceptVariant(Visitor!(Expr, Variant) visitor);
 }
 
 // the D way ;)
@@ -21,7 +21,7 @@ private string genStuff(T)()
     ctorp ~= ")";
     ctorb ~= "}";
 
-    return ctorp ~ ctorb ~ " override Variant acceptVariant(Visitor!Variant visitor) => visitor.visit(this);";
+    return ctorp ~ ctorb ~ " override Variant acceptVariant(Visitor!(typeof(super), Variant) visitor) => visitor.visit(this);";
 }
 
 class Binary : Expr {
@@ -52,16 +52,16 @@ class Unary : Expr {
 private alias mod = mixin(__MODULE__);
 
 // create the visitor interface, we gonna use overloading...
-interface Visitor(R) {
+interface Visitor(Base, R) {
     static foreach(mem; __traits(allMembers, mod))
     {
-        static if(is(__traits(getMember, mod, mem) == Expr))
+        static if(is(__traits(getMember, mod, mem) == Base))
         {
-            // skip the actual Expr class
+            // skip the actual Base class
         }
-        else static if(is(__traits(getMember, mod, mem) : Expr))
+        else static if(is(__traits(getMember, mod, mem) : Base))
         {
-            R visit(__traits(getMember, mod, mem) expr);
+            R visit(__traits(getMember, mod, mem) item);
         }
     }
 }
@@ -69,24 +69,24 @@ interface Visitor(R) {
 // the UFCS accept method (cannot be virtual).
 // this works by calling the real visitor, then wrapping it in a variant, and
 // unwrapping once it comes out.
-R accept(R)(Expr expr, Visitor!R visitor)
+R accept(Base, R)(Base item, Visitor!(Base, R) visitor)
 {
-    static class VariantVisitor : Visitor!Variant {
-        Visitor!R realVisitor;
-        this(Visitor!R rv) {
+    static class VariantVisitor : Visitor!(Base, Variant) {
+        Visitor!(Base, R) realVisitor;
+        this(Visitor!(Base, R) rv) {
             this.realVisitor = rv;
         }
 
         static foreach(mem; __traits(allMembers, mod))
         {
-            static if(is(__traits(getMember, mod, mem) == Expr))
+            static if(is(__traits(getMember, mod, mem) == Base))
             {
-                // skip the actual Expr class
+                // skip the actual Base class
             }
-            else static if(is(__traits(getMember, mod, mem) : Expr))
+            else static if(is(__traits(getMember, mod, mem) : Base))
             {
-                Variant visit(__traits(getMember, mod, mem) expr) {
-                    return Variant(realVisitor.visit(expr));
+                Variant visit(__traits(getMember, mod, mem) item) {
+                    return Variant(realVisitor.visit(item));
                 }
             }
         }
@@ -94,7 +94,7 @@ R accept(R)(Expr expr, Visitor!R visitor)
 
     scope vv = new VariantVisitor(visitor);
     // call the variant visitor, then unwrap it.
-    return expr.acceptVariant(vv).get!R;
+    return item.acceptVariant(vv).get!R;
 }
 
 // keep this up to date with all the types
