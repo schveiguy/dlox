@@ -1,5 +1,5 @@
 module lox.astprinter;
-import lox.expr;
+import lox.ast;
 
 class AstPrinter : Visitor!string {
     string print(Expr expr) {

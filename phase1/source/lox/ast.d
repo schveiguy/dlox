@@ -1,4 +1,4 @@
-module lox.expr;
+module lox.ast;
 import lox.token;
 import std.variant;
 

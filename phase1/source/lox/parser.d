@@ -1,7 +1,7 @@
 module lox.parser;
 
 import lox.token;
-import lox.expr;
+import lox.ast;
 
 class Parser {
     private Token[] tokens;

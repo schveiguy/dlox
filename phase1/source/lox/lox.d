@@ -4,7 +4,7 @@ import lox.scanner;
 import lox.token;
 import lox.io;
 import lox.parser;
-import lox.expr;
+import lox.ast;
 import lox.interpreter;
 
 Interpreter interpreter;

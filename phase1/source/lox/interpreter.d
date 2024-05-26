@@ -1,6 +1,6 @@
 module lox.interpreter;
 
-import lox.expr;
+import lox.ast;
 import lox.token;
 import lox.io;
 
