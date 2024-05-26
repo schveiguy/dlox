@@ -3,6 +3,8 @@ module lox.lox;
 import lox.scanner;
 import lox.token;
 import lox.io;
+import lox.parser;
+import lox.expr;
 
 
 /// begin Lox "class"
@@ -11,16 +13,16 @@ bool hadError = false;
 
 void run(const(char)[] script)
 {
+    import lox.astprinter;
     auto scanner = new Scanner(script);
     Token[] tokens = scanner.scanTokens();
+    Parser parser = new Parser(tokens);
+    Expr expression = parser.parse();
+
+    if(hadError) return;
 
     auto output = outStream;
-    // for now, just print the tokens
-    foreach(token; tokens)
-    {
-        output.writeln(token.toString(), false);
-    }
-    output.flush();
+    output.writeln(new AstPrinter().print(expression));
 }
 
 private void runFile(string path) {
@@ -36,7 +38,15 @@ void error(int line, string message) {
     report(line, "", message);
 }
 
-private void report(int line, string where, string message) {
+void error(Token token, string message) {
+    if(token.type == TokenType.EOF) {
+        report(token.line, " at end", message);
+    } else {
+        report(token.line, " at '" ~ token.lexeme ~ "'", message);
+    }
+}
+
+private void report(int line, const(char)[] where, string message) {
     // TODO: fix this
     import std.conv : text;
     errStream.writeln(text("[line ", line, "] Error", where, ": ", message));
