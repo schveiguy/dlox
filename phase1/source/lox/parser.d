@@ -45,6 +45,7 @@ class Parser {
 
     private Stmt statement() {
         if(match(TokenType.PRINT)) return printStatement();
+        if(match(TokenType.LEFT_BRACE)) return blockStatement();
         return expressionStatement();
     }
 
@@ -58,6 +59,21 @@ class Parser {
         auto expr = expression();
         consume(TokenType.SEMICOLON, "Expect ';' after value.");
         return new Print(expr);
+    }
+
+    private Stmt blockStatement() {
+        return new Block(block());
+    }
+
+    private Stmt[] block() {
+        Stmt[] statements;
+        while(!isAtEnd())
+        {
+            if(match(TokenType.RIGHT_BRACE))
+                return statements;
+            statements ~= declaration();
+        }
+        throw error(peek(), "Expected right brace");
     }
 
     private Expr expression() {

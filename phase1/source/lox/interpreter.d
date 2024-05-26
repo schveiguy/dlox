@@ -8,11 +8,18 @@ import std.sumtype : match;
 
 class Environment {
     Value[const(char)[]] values;
+    Environment enclosing;
+
+    this(Environment enclosing = null) {
+        this.enclosing = enclosing;
+    }
 
     ref Value get(Token name) {
         if(auto v = name.lexeme in values) {
             return *v;
         }
+        if(enclosing !is null)
+            return enclosing.get(name);
 
         throw new RuntimeException(name,
                 "Undefined variable '" ~ cast(string)name.lexeme ~ "'.");
@@ -24,11 +31,11 @@ class Environment {
 }
 
 class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
-    Environment variables;
+    Environment environment;
 
     this()
     {
-        variables = new Environment;
+        environment = new Environment;
     }
 
     // visitors
@@ -135,12 +142,12 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
     }
 
     public Value visit(Variable expr) {
-        return variables.get(expr.name);
+        return environment.get(expr.name);
     }
 
     Value visit(Assign expr) {
         auto val = evaluate(expr.value);
-        variables.get(expr.name) = val;
+        environment.get(expr.name) = val;
         return val;
     }
 
@@ -161,7 +168,23 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
             val = evaluate(stmt.initializer);
         }
 
-        variables.define(stmt.name.lexeme, val);
+        environment.define(stmt.name.lexeme, val);
+    }
+
+    void visit(Block stmt) {
+        executeBlock(stmt.statements, new Environment(environment));
+    }
+
+    private void executeBlock(Stmt[] statements, Environment environment)
+    {
+        auto previous = this.environment;
+        this.environment = environment;
+        scope(exit) this.environment = previous;
+
+        foreach(stmt; statements)
+        {
+            execute(stmt);
+        }
     }
 
     // helper

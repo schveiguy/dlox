@@ -78,6 +78,11 @@ class Var : Stmt {
     mixin(genStuff!(typeof(this), "void"));
 }
 
+class Block : Stmt {
+    Stmt[] statements;
+    mixin(genStuff!(typeof(this), "void"));
+}
+
 // implement the visitor stuff
 
 private alias mod = mixin(__MODULE__);
