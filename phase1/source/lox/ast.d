@@ -101,6 +101,20 @@ class If : Stmt {
     mixin(genStuff!(typeof(this), "void"));
 }
 
+class While : Stmt {
+    Expr condition;
+    Stmt body;
+    mixin(genStuff!(typeof(this), "void"));
+}
+
+class For : Stmt {
+    Stmt declaration;
+    Expr condition;
+    Expr increment;
+    Stmt body;
+    mixin(genStuff!(typeof(this), "void"));
+}
+
 ///// VISITOR
 
 private alias mod = mixin(__MODULE__);

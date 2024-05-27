@@ -47,6 +47,8 @@ class Parser {
         if(match(TokenType.PRINT)) return printStatement();
         if(match(TokenType.LEFT_BRACE)) return blockStatement();
         if(match(TokenType.IF)) return ifStatement();
+        if(match(TokenType.FOR)) return forStatement();
+        if(match(TokenType.WHILE)) return whileStatement();
         return expressionStatement();
     }
 
@@ -77,6 +79,40 @@ class Parser {
             elseBranch = statement();
         }
         return new If(cond, thenBranch, elseBranch);
+    }
+
+    private Stmt whileStatement() {
+        consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.");
+        auto cond = expression();
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after while condition.");
+        auto body = statement();
+        return new While(cond, body);
+    }
+
+    private Stmt forStatement() {
+        consume(TokenType.LEFT_PAREN, "Expect '(' after 'for'.");
+        Stmt declaration = null;
+        Expr condition = null;
+        Expr increment = null;
+        if(!match(TokenType.SEMICOLON))
+        {
+            if(match(TokenType.VAR))
+                declaration = varDecl();
+            else
+                declaration = expressionStatement();
+        }
+        if(!match(TokenType.SEMICOLON))
+        {
+            condition = expression();
+            consume(TokenType.SEMICOLON, "Expect ';' after for condition.");
+        }
+        if(!match(TokenType.RIGHT_PAREN))
+        {
+            increment = expression();
+            consume(TokenType.RIGHT_PAREN, "Expect ')' after for increment.");
+        }
+        auto body = statement();
+        return new For(declaration, condition, increment, body);
     }
 
     private Stmt[] block() {

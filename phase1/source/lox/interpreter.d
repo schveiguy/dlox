@@ -188,6 +188,27 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
             execute(stmt.elseBranch);
     }
 
+    void visit(While stmt) {
+        while(evaluate(stmt.condition).isTruthy)
+        {
+            execute(stmt.body);
+        }
+    }
+
+    void visit(For stmt) {
+        auto previous = this.environment;
+        this.environment = new Environment(previous);
+        scope(exit) this.environment = previous;
+        if(stmt.declaration !is null)
+            execute(stmt.declaration);
+        while(stmt.condition is null || evaluate(stmt.condition).isTruthy)
+        {
+            execute(stmt.body);
+            if(stmt.increment !is null)
+                evaluate(stmt.increment);
+        }
+    }
+
     private void executeBlock(Stmt[] statements, Environment environment)
     {
         auto previous = this.environment;
