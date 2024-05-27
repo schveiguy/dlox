@@ -1,9 +1,8 @@
 module lox.ast;
 import lox.token;
-import std.variant;
 
 // the D way ;)
-private string genStuff(T, string VisitorReturn)()
+private string genStuff(T)()
 {
     string ctorp = "this(";
     string ctorb = "{";
@@ -16,55 +15,62 @@ private string genStuff(T, string VisitorReturn)()
     ctorp ~= ")";
     ctorb ~= "}";
 
-    return ctorp ~ ctorb ~ " override " ~ VisitorReturn ~ " acceptHook(Visitor!(typeof(super), " ~ VisitorReturn ~ ") visitor) => visitor.visit(this);";
+    return ctorp ~ ctorb ~ " override void acceptHook(Visitor!(typeof(super), void) visitor) => visitor.visit(this);";
 }
+
+// Note about visitors:
+// D does not allow templated virtual functions. However, the visitor pattern
+// *passes the visitor to the derived type*. This means that we have a location
+// to store the "true" return type, and we just need to unwrap it on the call
+// side. This is done through the UFCS function `accept`. The `acceptHook`
+// always returns `void`, because the true return value is in the visitor
+// itself. See the `accept` function for more details.
 
 ///// EXPRESSIONS
 
 abstract class Expr {
-    // hehe, have to be java-like for this one.
-    abstract Variant acceptHook(Visitor!(Expr, Variant) visitor);
+    abstract void acceptHook(Visitor!(Expr, void) visitor);
 }
 
 class Binary : Expr {
     Expr left;
     Token operator;
     Expr right;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Grouping : Expr {
     Expr expression;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Literal : Expr {
     Value value;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Unary : Expr {
     Token operator;
     Expr right;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Variable : Expr {
     Token name;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Assign : Expr {
     Token name;
     Expr value;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Logical : Expr {
     Expr left;
     Token operator;
     Expr right;
-    mixin(genStuff!(typeof(this), "Variant"));
+    mixin(genStuff!(typeof(this)));
 }
 
 ///// STATEMENTS
@@ -75,36 +81,36 @@ abstract class Stmt {
 
 class Expression : Stmt {
     Expr expression;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Print : Stmt {
     Expr expression;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Var : Stmt {
     Token name;
     Expr initializer;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class Block : Stmt {
     Stmt[] statements;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class If : Stmt {
     Expr condition;
     Stmt thenBranch;
     Stmt elseBranch;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class While : Stmt {
     Expr condition;
     Stmt body;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 class For : Stmt {
@@ -112,7 +118,7 @@ class For : Stmt {
     Expr condition;
     Expr increment;
     Stmt body;
-    mixin(genStuff!(typeof(this), "void"));
+    mixin(genStuff!(typeof(this)));
 }
 
 ///// VISITOR
@@ -135,16 +141,17 @@ interface Visitor(Base, R) {
 }
 
 // the UFCS accept method (cannot be virtual).
-// this works by calling the real visitor, then wrapping it in a variant, and
-// unwrapping once it comes out.
+// this works by calling the real visitor, storing the return value as a
+// member, and returning the value in the outer call.
 R accept(Base, R)(Base item, Visitor!(Base, R) visitor)
 {
     static if(is(R == void))
-        // void returns do not need a variant intermediate
+        // void returns do not need an intermediate
         return item.acceptHook(visitor);
     else {
-        static class VariantVisitor : Visitor!(Base, Variant) {
-            Visitor!(Base, R) realVisitor;
+        static class WrappingVisitor : Visitor!(Base, void) {
+            private Visitor!(Base, R) realVisitor;
+            private R returnValue;
             this(Visitor!(Base, R) rv) {
                 this.realVisitor = rv;
             }
@@ -157,16 +164,17 @@ R accept(Base, R)(Base item, Visitor!(Base, R) visitor)
                 }
                 else static if(is(__traits(getMember, mod, mem) : Base))
                 {
-                    Variant visit(__traits(getMember, mod, mem) item) {
-                        return Variant(realVisitor.visit(item));
+                    void visit(__traits(getMember, mod, mem) item) {
+                        returnValue = realVisitor.visit(item);
                     }
                 }
             }
         }
 
-        scope vv = new VariantVisitor(visitor);
-        // call the variant visitor, then unwrap it.
-        return item.acceptHook(vv).get!R;
+        scope wrapper = new WrappingVisitor(visitor);
+        // call the wrapping visitor, then fetch the return value.
+        item.acceptHook(wrapper);
+        return wrapper.returnValue;
     }
 }
 
