@@ -69,11 +69,7 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
                         _ => throw new RuntimeException(expr.operator, "Operand must be an number.")
                         );
             case BANG:
-                return val.match!(
-                        (bool b) => Value(!b),
-                        (typeof(null) n) => Value(true),
-                        _ => Value(false)
-                        );
+                return Value(!val.isTruthy);
             default:
                 assert(false, "Internal error");
         }
@@ -151,6 +147,15 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         return val;
     }
 
+    Value visit(Logical expr) {
+        auto val = evaluate(expr.left);
+        if(expr.operator.type == TokenType.OR && val.isTruthy)
+            return val;
+        else if(expr.operator.type == TokenType.AND && !val.isTruthy)
+            return val;
+        return evaluate(expr.right);
+    }
+
     void visit(Expression stmt) {
         auto val = evaluate(stmt.expression);
     }
@@ -173,6 +178,14 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
 
     void visit(Block stmt) {
         executeBlock(stmt.statements, new Environment(environment));
+    }
+
+    void visit(If stmt) {
+        auto condResult = evaluate(stmt.condition);
+        if(condResult.isTruthy)
+            execute(stmt.thenBranch);
+        else if(stmt.elseBranch !is null)
+            execute(stmt.elseBranch);
     }
 
     private void executeBlock(Stmt[] statements, Environment environment)
@@ -204,4 +217,13 @@ class RuntimeException : Exception {
         this.token = tok;
         super(message, file, line);
     }
+}
+
+bool isTruthy(Value v)
+{
+    return v.match!(
+            (bool b) => b,
+            (typeof(null) n) => false,
+            _ => true
+            );
 }

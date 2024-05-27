@@ -37,6 +37,10 @@ class AstPrinter : Visitor!(Expr, string) {
         return parenthesize("assign " ~ expr.name.lexeme, expr.value);
     }
 
+    public string visit(Logical expr) {
+        return parenthesize(expr.operator.lexeme, expr.left, expr.right);
+    }
+
     private string parenthesize(const(char)[] name, Expr[] exprs...) {
         import std.array : Appender;
         Appender!string app;

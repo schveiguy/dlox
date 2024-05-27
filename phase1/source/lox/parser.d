@@ -46,6 +46,7 @@ class Parser {
     private Stmt statement() {
         if(match(TokenType.PRINT)) return printStatement();
         if(match(TokenType.LEFT_BRACE)) return blockStatement();
+        if(match(TokenType.IF)) return ifStatement();
         return expressionStatement();
     }
 
@@ -65,6 +66,19 @@ class Parser {
         return new Block(block());
     }
 
+    private Stmt ifStatement() {
+        consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.");
+        auto cond = expression();
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after if condition.");
+        auto thenBranch = statement();
+        Stmt elseBranch = null;
+        if(match(TokenType.ELSE))
+        {
+            elseBranch = statement();
+        }
+        return new If(cond, thenBranch, elseBranch);
+    }
+
     private Stmt[] block() {
         Stmt[] statements;
         while(!isAtEnd())
@@ -82,7 +96,7 @@ class Parser {
 
     private Expr assignment() {
         // parse the left expression
-        auto expr = equality();
+        auto expr = logicOr();
         if(match(TokenType.EQUAL))
         {
             Token equals = previous();
@@ -93,6 +107,30 @@ class Parser {
             }
 
             error(equals, "Invalid assignment target.");
+        }
+
+        return expr;
+    }
+
+    private Expr logicOr() {
+        auto expr = logicAnd();
+        while(match(TokenType.OR))
+        {
+            Token operator = previous();
+            Expr right = logicAnd();
+            expr = new Logical(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    private Expr logicAnd() {
+        auto expr = equality();
+        while(match(TokenType.AND))
+        {
+            Token operator = previous();
+            Expr right = equality();
+            expr = new Logical(expr, operator, right);
         }
 
         return expr;

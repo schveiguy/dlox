@@ -2,11 +2,6 @@ module lox.ast;
 import lox.token;
 import std.variant;
 
-abstract class Expr {
-    // hehe, have to be java-like for this one.
-    abstract Variant acceptHook(Visitor!(Expr, Variant) visitor);
-}
-
 // the D way ;)
 private string genStuff(T, string VisitorReturn)()
 {
@@ -22,6 +17,13 @@ private string genStuff(T, string VisitorReturn)()
     ctorb ~= "}";
 
     return ctorp ~ ctorb ~ " override " ~ VisitorReturn ~ " acceptHook(Visitor!(typeof(super), " ~ VisitorReturn ~ ") visitor) => visitor.visit(this);";
+}
+
+///// EXPRESSIONS
+
+abstract class Expr {
+    // hehe, have to be java-like for this one.
+    abstract Variant acceptHook(Visitor!(Expr, Variant) visitor);
 }
 
 class Binary : Expr {
@@ -58,6 +60,15 @@ class Assign : Expr {
     mixin(genStuff!(typeof(this), "Variant"));
 }
 
+class Logical : Expr {
+    Expr left;
+    Token operator;
+    Expr right;
+    mixin(genStuff!(typeof(this), "Variant"));
+}
+
+///// STATEMENTS
+
 abstract class Stmt {
     abstract void acceptHook(Visitor!(Stmt, void) visitor);
 }
@@ -83,7 +94,14 @@ class Block : Stmt {
     mixin(genStuff!(typeof(this), "void"));
 }
 
-// implement the visitor stuff
+class If : Stmt {
+    Expr condition;
+    Stmt thenBranch;
+    Stmt elseBranch;
+    mixin(genStuff!(typeof(this), "void"));
+}
+
+///// VISITOR
 
 private alias mod = mixin(__MODULE__);
 
@@ -147,6 +165,7 @@ unittest {
         int visit(Unary) => 3;
         int visit(Variable) => 4;
         int visit(Assign) => 5;
+        int visit(Logical) => 6;
     }
     auto l = new Literal(Value(null));
     auto t = new Token(TokenType.MINUS, "-", Value(null), 0);
@@ -155,10 +174,12 @@ unittest {
     auto g = new Grouping(l);
     auto v = new Variable(new Token(TokenType.IDENTIFIER, "a", Value(null), 0));
     auto a = new Assign(new Token(TokenType.IDENTIFIER, "a", Value(null), 0), l);
+    auto log = new Logical(l, new Token(TokenType.OR, "or", Value(null), 0), l);
     assert(b.accept(new intVisitor) == 0);
     assert(g.accept(new intVisitor) == 1);
     assert(l.accept(new intVisitor) == 2);
     assert(u.accept(new intVisitor) == 3);
     assert(v.accept(new intVisitor) == 4);
     assert(a.accept(new intVisitor) == 5);
+    assert(log.accept(new intVisitor) == 6);
 }
