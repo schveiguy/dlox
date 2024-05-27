@@ -6,7 +6,7 @@ import lox.io;
 
 import std.sumtype : match;
 
-class Environment {
+final class Environment {
     Value[const(char)[]] values;
     Environment enclosing;
 
@@ -30,7 +30,7 @@ class Environment {
     }
 }
 
-class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
+final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
     Environment environment;
 
     this()
@@ -39,25 +39,16 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
     }
 
     // visitors
-    public Value visit(Literal expr) {
+    Value visit(Literal expr) {
         return expr.value;
     }
 
-    public void interpret(Stmt[] statements) {
-        try {
-            foreach(stmt; statements)
-                execute(stmt);
-        } catch (RuntimeException error) {
-            import lox.lox;
-            runtimeError(error);
-        }
-    }
 
-    public Value visit(Grouping expr) {
+    Value visit(Grouping expr) {
         return evaluate(expr.expression);
     }
 
-    public Value visit(Unary expr) {
+    Value visit(Unary expr) {
         auto val = evaluate(expr.right);
         // must use double for negation. Just accepting a double means it will accept bools
         static Value negDouble(T)(T v) if(is(T == double)) => Value(-v);
@@ -75,7 +66,7 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         }
     }
 
-    public Value visit(Binary expr) {
+    Value visit(Binary expr) {
         auto leftVal = evaluate(expr.left);
         auto rightVal = evaluate(expr.right);
 
@@ -137,7 +128,7 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         }
     }
 
-    public Value visit(Variable expr) {
+    Value visit(Variable expr) {
         return environment.get(expr.name);
     }
 
@@ -209,6 +200,7 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         }
     }
 
+    // helper
     private void executeBlock(Stmt[] statements, Environment environment)
     {
         auto previous = this.environment;
@@ -221,13 +213,23 @@ class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         }
     }
 
-    // helper
     private Value evaluate(Expr expr) {
         return expr.accept(this);
     }
 
     private void execute(Stmt stmt) {
         return stmt.accept(this);
+    }
+
+    // entry point
+    void interpret(Stmt[] statements) {
+        try {
+            foreach(stmt; statements)
+                execute(stmt);
+        } catch (RuntimeException error) {
+            import lox.lox;
+            runtimeError(error);
+        }
     }
 }
 
@@ -240,6 +242,7 @@ class RuntimeException : Exception {
     }
 }
 
+// used to run conditions.
 bool isTruthy(Value v)
 {
     return v.match!(

@@ -3,7 +3,7 @@ module lox.parser;
 import lox.token;
 import lox.ast;
 
-class Parser {
+final class Parser {
     private Token[] tokens;
     private int current = 0;
 
@@ -11,6 +11,7 @@ class Parser {
         this.tokens = tokens;
     }
 
+    // entry point
     Stmt[] parse() {
         Stmt[] statements;
         while(!isAtEnd())
@@ -19,7 +20,9 @@ class Parser {
         return statements;
     }
 
-    private Stmt declaration()
+private:
+    // grammar productions
+    Stmt declaration()
     {
         try {
             if(match(TokenType.VAR))
@@ -31,7 +34,7 @@ class Parser {
         }
     }
 
-    private Stmt varDecl()
+    Stmt varDecl()
     {
         auto name = consume(TokenType.IDENTIFIER, "Expect variable name.");
         Expr initializer;
@@ -43,7 +46,7 @@ class Parser {
         return new Var(name, initializer);
     }
 
-    private Stmt statement() {
+    Stmt statement() {
         if(match(TokenType.PRINT)) return printStatement();
         if(match(TokenType.LEFT_BRACE)) return blockStatement();
         if(match(TokenType.IF)) return ifStatement();
@@ -52,23 +55,23 @@ class Parser {
         return expressionStatement();
     }
 
-    private Stmt expressionStatement() {
+    Stmt expressionStatement() {
         auto expr = expression();
         consume(TokenType.SEMICOLON, "Expect ';' after expression.");
         return new Expression(expr);
     }
 
-    private Stmt printStatement() {
+    Stmt printStatement() {
         auto expr = expression();
         consume(TokenType.SEMICOLON, "Expect ';' after value.");
         return new Print(expr);
     }
 
-    private Stmt blockStatement() {
+    Stmt blockStatement() {
         return new Block(block());
     }
 
-    private Stmt ifStatement() {
+    Stmt ifStatement() {
         consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.");
         auto cond = expression();
         consume(TokenType.RIGHT_PAREN, "Expect ')' after if condition.");
@@ -81,7 +84,7 @@ class Parser {
         return new If(cond, thenBranch, elseBranch);
     }
 
-    private Stmt whileStatement() {
+    Stmt whileStatement() {
         consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.");
         auto cond = expression();
         consume(TokenType.RIGHT_PAREN, "Expect ')' after while condition.");
@@ -89,7 +92,7 @@ class Parser {
         return new While(cond, body);
     }
 
-    private Stmt forStatement() {
+    Stmt forStatement() {
         consume(TokenType.LEFT_PAREN, "Expect '(' after 'for'.");
         Stmt declaration = null;
         Expr condition = null;
@@ -115,7 +118,7 @@ class Parser {
         return new For(declaration, condition, increment, body);
     }
 
-    private Stmt[] block() {
+    Stmt[] block() {
         Stmt[] statements;
         while(!isAtEnd())
         {
@@ -126,11 +129,11 @@ class Parser {
         throw error(peek(), "Expected right brace");
     }
 
-    private Expr expression() {
+    Expr expression() {
         return assignment();
     }
 
-    private Expr assignment() {
+    Expr assignment() {
         // parse the left expression
         auto expr = logicOr();
         if(match(TokenType.EQUAL))
@@ -148,7 +151,7 @@ class Parser {
         return expr;
     }
 
-    private Expr logicOr() {
+    Expr logicOr() {
         auto expr = logicAnd();
         while(match(TokenType.OR))
         {
@@ -160,7 +163,7 @@ class Parser {
         return expr;
     }
 
-    private Expr logicAnd() {
+    Expr logicAnd() {
         auto expr = equality();
         while(match(TokenType.AND))
         {
@@ -172,7 +175,7 @@ class Parser {
         return expr;
     }
 
-    private Expr equality() {
+    Expr equality() {
         Expr expr = comparison();
 
         while(match(TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)) {
@@ -183,7 +186,7 @@ class Parser {
         return expr;
     }
 
-    private Expr comparison() {
+    Expr comparison() {
         Expr expr = term();
 
         while(match(TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL)) {
@@ -195,7 +198,7 @@ class Parser {
         return expr;
     }
 
-    private Expr term() {
+    Expr term() {
         Expr expr = factor();
 
         while(match(TokenType.PLUS, TokenType.MINUS)) {
@@ -207,7 +210,7 @@ class Parser {
         return expr;
     }
 
-    private Expr factor() {
+    Expr factor() {
         Expr expr = unary();
 
         while(match(TokenType.SLASH, TokenType.STAR)) {
@@ -219,7 +222,7 @@ class Parser {
         return expr;
     }
 
-    private Expr unary() {
+    Expr unary() {
         if(match(TokenType.BANG, TokenType.MINUS))
         {
             Token operator = previous();
@@ -229,7 +232,7 @@ class Parser {
         return primary();
     }
 
-    private Expr primary() {
+    Expr primary() {
         if(match(TokenType.TRUE)) return new Literal(Value(true));
         if(match(TokenType.FALSE)) return new Literal(Value(false));
         if(match(TokenType.NIL)) return new Literal(Value(null));
@@ -249,7 +252,8 @@ class Parser {
         throw error(peek(), "Expect expression.");
     }
 
-    private bool match(TokenType[] types...) {
+    // helpers
+    bool match(TokenType[] types...) {
         foreach(type; types) {
             if(check(type)) {
                 advance();
@@ -260,28 +264,28 @@ class Parser {
         return false;
     }
 
-    private bool check(TokenType type) {
+    bool check(TokenType type) {
         if(isAtEnd()) return false;
         return peek().type == type;
     }
 
-    private Token advance() {
+    Token advance() {
         if (!isAtEnd()) ++current;
         return previous();
     }
 
-    private Token consume(TokenType type, string message) {
+    Token consume(TokenType type, string message) {
         if(check(type)) return advance();
         throw error(peek(), message);
     }
 
-    private ParseError error(Token token, string message) {
+    ParseError error(Token token, string message) {
         static import lox.lox;
         lox.lox.error(token, message);
         return new ParseError();
     }
 
-    private void synchronize() {
+    void synchronize() {
         advance();
         while(!isAtEnd()) {
             if(previous().type == TokenType.SEMICOLON) return;
@@ -303,12 +307,12 @@ class Parser {
         }
     }
 
-    private bool isAtEnd() => peek().type == TokenType.EOF;
-    private Token peek() => tokens[current];
-    private Token previous() => tokens[current-1];
+    bool isAtEnd() => peek().type == TokenType.EOF;
+    Token peek() => tokens[current];
+    Token previous() => tokens[current-1];
 }
 
-private class ParseError : Exception {
+private final class ParseError : Exception {
     this(string file = __FILE__, size_t line = __LINE__) {
         super("Parse error", file, line);
     }
