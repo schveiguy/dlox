@@ -73,6 +73,13 @@ class Logical : Expr {
     mixin(genStuff!(typeof(this)));
 }
 
+class Call : Expr {
+    Expr callee;
+    Token paren;
+    Expr[] arguments;
+    mixin(genStuff!(typeof(this)));
+}
+
 ///// STATEMENTS
 
 abstract class Stmt {
@@ -118,6 +125,13 @@ class For : Stmt {
     Expr condition;
     Expr increment;
     Stmt body;
+    mixin(genStuff!(typeof(this)));
+}
+
+class Function : Stmt {
+    Token name;
+    Token[] params;
+    Stmt[] body;
     mixin(genStuff!(typeof(this)));
 }
 
@@ -188,15 +202,19 @@ unittest {
         int visit(Variable) => 4;
         int visit(Assign) => 5;
         int visit(Logical) => 6;
+        int visit(Call) => 7;
     }
-    auto l = new Literal(Value(null));
     auto t = new Token(TokenType.MINUS, "-", Value(null), 0);
+    auto id = new Token(TokenType.IDENTIFIER, "a", Value(null), 0);
+
+    auto l = new Literal(Value(null));
     auto u = new Unary(t, l);
     auto b = new Binary(l, t, l);
     auto g = new Grouping(l);
-    auto v = new Variable(new Token(TokenType.IDENTIFIER, "a", Value(null), 0));
-    auto a = new Assign(new Token(TokenType.IDENTIFIER, "a", Value(null), 0), l);
+    auto v = new Variable(id);
+    auto a = new Assign(id, l);
     auto log = new Logical(l, new Token(TokenType.OR, "or", Value(null), 0), l);
+    auto c = new Call(v, new Token(TokenType.RIGHT_PAREN, ")", Value(null), 0), [l]);
     assert(b.accept(new intVisitor) == 0);
     assert(g.accept(new intVisitor) == 1);
     assert(l.accept(new intVisitor) == 2);
@@ -204,4 +222,5 @@ unittest {
     assert(v.accept(new intVisitor) == 4);
     assert(a.accept(new intVisitor) == 5);
     assert(log.accept(new intVisitor) == 6);
+    assert(c.accept(new intVisitor) == 7);
 }

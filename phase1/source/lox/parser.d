@@ -27,6 +27,8 @@ private:
         try {
             if(match(TokenType.VAR))
                 return varDecl();
+            if(match(TokenType.FUN))
+                return funDecl("function");
             return statement();
         } catch(ParseError error) {
             synchronize();
@@ -44,6 +46,23 @@ private:
         }
         consume(TokenType.SEMICOLON, "Expect ';' after declaration.");
         return new Var(name, initializer);
+    }
+
+    Stmt funDecl(string kind)
+    {
+        auto name = consume(TokenType.IDENTIFIER, "Expect " ~ kind ~ " name.");
+        consume(TokenType.LEFT_PAREN, "Expect '(' after " ~ kind ~ " name.");
+        Token[] parameters;
+        if(!check(TokenType.RIGHT_PAREN))
+            do
+            {
+                if(parameters.length >= 255)
+                    error(peek(), "Can't have more than 255 parameters.");
+                parameters ~= consume(TokenType.IDENTIFIER, "Expect parameter name.");
+            } while(match(TokenType.COMMA));
+        consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.");
+        consume(TokenType.LEFT_BRACE, "Expect '{' before " ~ kind ~ " body.");
+        return new Function(name, parameters, block());
     }
 
     Stmt statement() {
@@ -229,7 +248,34 @@ private:
             Expr right = unary();
             return new Unary(operator, right);
         }
-        return primary();
+        return call();
+    }
+
+    Expr call() {
+        auto callee = primary();
+
+        void finishCall()
+        {
+            Expr[] arguments;
+            if(!check(TokenType.RIGHT_PAREN))
+                do
+                {
+                    if(arguments.length >= 255)
+                        error(peek(), "Can't have more than 255 arguments.");
+                    arguments ~= expression();
+                } while(match(TokenType.COMMA));
+            auto paren = consume(TokenType.RIGHT_PAREN, "Expect ')' after function arugments.");
+            callee = new Call(callee, paren, arguments);
+        }
+
+        while(true)
+        {
+            if(!match(TokenType.LEFT_PAREN))
+                break;
+            else
+                finishCall();
+        }
+        return callee;
     }
 
     Expr primary() {

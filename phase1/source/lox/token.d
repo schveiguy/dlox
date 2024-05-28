@@ -2,8 +2,20 @@ module lox.token;
 
 import std.sumtype;
 
+struct LoxCall
+{
+    private import lox.ast : Stmt;
+    const(char)[] name;
+    const(char[])[] parameters;
+    Stmt[] statements;
+    Value function(Value[]) nativeFn;
+    string toString() {
+        return (nativeFn ? "<nativeFn " : "<fn ") ~ cast(string)name ~ ">";
+    }
+}
+
 // substitute for Java Object for literals
-alias Value = SumType!(double, const(char)[], bool, typeof(null));
+alias Value = SumType!(double, const(char)[], bool, typeof(null), LoxCall);
 
 enum TokenType {
   // Single-character tokens.

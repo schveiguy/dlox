@@ -6,6 +6,15 @@ import lox.io;
 
 import std.sumtype : match;
 
+// native functions we want to expose
+private Value getTime(Value[] parameters)
+{
+    import std.datetime.systime;
+    assert(parameters.length == 0);
+    auto curTime = Clock.currTime - SysTime(unixTimeToStdTime(0));
+    return Value(curTime.total!"msecs" / 1000.0);
+}
+
 final class Environment {
     Value[const(char)[]] values;
     Environment enclosing;
@@ -32,10 +41,15 @@ final class Environment {
 
 final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
     Environment environment;
+    Environment globals;
 
     this()
     {
-        environment = new Environment;
+        globals = new Environment;
+        environment = globals;
+
+        // define some native functions
+        globals.define("clock", Value(LoxCall(name: "clock", parameters: [], nativeFn: &getTime)));
     }
 
     // visitors
@@ -147,6 +161,18 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         return evaluate(expr.right);
     }
 
+    Value visit(Call expr) {
+        import std.algorithm;
+        import std.array;
+        auto callee = evaluate(expr.callee);
+        auto call = callee.match!(
+                (LoxCall call) => call,
+                _ => throw new RuntimeException(expr.paren, "bad call")
+                );
+        Value[] arguments = expr.arguments.map!(e => evaluate(e)).array;
+        return executeCall(call, expr.paren, arguments);
+    }
+
     void visit(Expression stmt) {
         auto val = evaluate(stmt.expression);
     }
@@ -200,7 +226,41 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         }
     }
 
+    void visit(Function stmt) {
+        import std.algorithm;
+        import std.array;
+        // create the lox function call.
+        LoxCall fn;
+        fn.name = stmt.name.lexeme;
+        fn.statements = stmt.body;
+        fn.parameters = stmt.params.map!(p => p.lexeme).array;
+        environment.define(stmt.name.lexeme, Value(fn));
+    }
+
     // helper
+    private Value executeCall(LoxCall call, Token paren, Value[] arguments)
+    {
+        if(arguments.length != call.parameters.length)
+        {
+            import std.conv;
+            throw new RuntimeException(paren, text("Expected ", call.parameters.length,
+                        " arguments but got ", arguments.length, "."));
+        }
+
+        if(call.nativeFn)
+            // this is a native function, call it
+            return call.nativeFn(arguments);
+
+        // set up the environment
+        auto environment = new Environment(globals);
+        // bind parameters
+        foreach(i, n; call.parameters)
+            environment.define(n, arguments[i]);
+        // execute
+        executeBlock(call.statements, environment);
+        return Value(null);
+    }
+
     private void executeBlock(Stmt[] statements, Environment environment)
     {
         auto previous = this.environment;
