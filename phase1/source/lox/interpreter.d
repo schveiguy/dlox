@@ -240,7 +240,7 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
 
     void visit(Return stmt)
     {
-        throw new ReturnValue(evaluate(stmt.value));
+        throw returnVal(evaluate(stmt.value));
     }
 
     // helper
@@ -292,6 +292,15 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         return stmt.accept(this);
     }
 
+    private ReturnValue returnVal(Value v)
+    {
+        static ReturnValue retval;
+        if(!retval)
+            retval = new ReturnValue;
+        retval.value = v;
+        return retval;
+    }
+
     // entry point
     void interpret(Stmt[] statements) {
         try {
@@ -323,10 +332,23 @@ bool isTruthy(Value v)
             );
 }
 
-private class ReturnValue : Throwable {
-    Value value;
-    this(Value value, string file = __FILE__, size_t line = __LINE__) {
-        super("", file, line);
-        this.value = value;
+private class SuppressTraceInfo : Throwable.TraceInfo
+{
+    override int opApply(scope int delegate(ref const(char[]))) const { return 0; }
+    override int opApply(scope int delegate(ref size_t, ref const(char[]))) const { return 0; }
+    override string toString() const { return null; }
+    static SuppressTraceInfo instance() @trusted @nogc pure nothrow
+    {
+        static immutable SuppressTraceInfo it = new SuppressTraceInfo;
+        return cast(SuppressTraceInfo)it;
     }
 }
+
+private class ReturnValue : Throwable {
+    Value value;
+    this(string file = __FILE__, size_t line = __LINE__) {
+        super("", file, line);
+        this.info = SuppressTraceInfo.instance;
+    }
+}
+
