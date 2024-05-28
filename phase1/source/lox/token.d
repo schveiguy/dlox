@@ -5,10 +5,12 @@ import std.sumtype;
 struct LoxCall
 {
     private import lox.ast : Stmt;
+    private import lox.interpreter : Environment;
     const(char)[] name;
     const(char[])[] parameters;
     Stmt[] statements;
     Value function(Value[]) nativeFn;
+    Environment closure;
     string toString() {
         return (nativeFn ? "<nativeFn " : "<fn ") ~ cast(string)name ~ ">";
     }

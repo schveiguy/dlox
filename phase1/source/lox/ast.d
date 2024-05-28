@@ -135,6 +135,11 @@ class Function : Stmt {
     mixin(genStuff!(typeof(this)));
 }
 
+class Return : Stmt {
+    Expr value;
+    mixin(genStuff!(typeof(this)));
+}
+
 ///// VISITOR
 
 private alias mod = mixin(__MODULE__);

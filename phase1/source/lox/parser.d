@@ -71,6 +71,7 @@ private:
         if(match(TokenType.IF)) return ifStatement();
         if(match(TokenType.FOR)) return forStatement();
         if(match(TokenType.WHILE)) return whileStatement();
+        if(match(TokenType.RETURN)) return returnStatement();
         return expressionStatement();
     }
 
@@ -135,6 +136,12 @@ private:
         }
         auto body = statement();
         return new For(declaration, condition, increment, body);
+    }
+
+    Stmt returnStatement() {
+        auto retval = expression();
+        consume(TokenType.SEMICOLON, "Expect ';' after return statement.");
+        return new Return(retval);
     }
 
     Stmt[] block() {

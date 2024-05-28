@@ -234,7 +234,13 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         fn.name = stmt.name.lexeme;
         fn.statements = stmt.body;
         fn.parameters = stmt.params.map!(p => p.lexeme).array;
+        fn.closure = environment;
         environment.define(stmt.name.lexeme, Value(fn));
+    }
+
+    void visit(Return stmt)
+    {
+        throw new ReturnValue(evaluate(stmt.value));
     }
 
     // helper
@@ -252,12 +258,17 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
             return call.nativeFn(arguments);
 
         // set up the environment
-        auto environment = new Environment(globals);
+        auto environment = new Environment(call.closure);
         // bind parameters
         foreach(i, n; call.parameters)
             environment.define(n, arguments[i]);
         // execute
-        executeBlock(call.statements, environment);
+        try {
+            executeBlock(call.statements, environment);
+        } catch(ReturnValue rv) {
+            return rv.value;
+        }
+
         return Value(null);
     }
 
@@ -310,4 +321,12 @@ bool isTruthy(Value v)
             (typeof(null) n) => false,
             _ => true
             );
+}
+
+private class ReturnValue : Throwable {
+    Value value;
+    this(Value value, string file = __FILE__, size_t line = __LINE__) {
+        super("", file, line);
+        this.value = value;
+    }
 }
