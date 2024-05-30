@@ -139,9 +139,13 @@ private:
     }
 
     Stmt returnStatement() {
-        auto retval = expression();
+        Token keyword = previous();
+        Expr retval = null;
+        if(!check(TokenType.SEMICOLON))
+            retval = expression();
+
         consume(TokenType.SEMICOLON, "Expect ';' after return statement.");
-        return new Return(retval);
+        return new Return(keyword, retval);
     }
 
     Stmt[] block() {

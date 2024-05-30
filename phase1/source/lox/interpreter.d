@@ -34,9 +34,26 @@ final class Environment {
                 "Undefined variable '" ~ cast(string)name.lexeme ~ "'.");
     }
 
+    ref Value getAt(ptrdiff_t distance, const(char)[] name) {
+        return ancestor(distance).values[name];
+    }
+    
+    private Environment ancestor(ptrdiff_t distance)
+    {
+        auto environment = this;
+        foreach(i; 0 .. distance)
+        {
+            environment = environment.enclosing;
+            assert(environment !is null);
+        }
+
+        return environment;
+    }
+
     void define(const(char)[] name, Value value) {
         values[name] = value;
     }
+
 }
 
 final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
@@ -143,12 +160,15 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
     }
 
     Value visit(Variable expr) {
-        return environment.get(expr.name);
+        return lookupVariable(expr.name, expr);
     }
 
     Value visit(Assign expr) {
         auto val = evaluate(expr.value);
-        environment.get(expr.name) = val;
+        if(expr.localScope == -1)
+            globals.get(expr.name) = val;
+        else
+            environment.getAt(expr.localScope, expr.name.lexeme) = val;
         return val;
     }
 
@@ -240,7 +260,10 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
 
     void visit(Return stmt)
     {
-        throw returnVal(evaluate(stmt.value));
+        Value v = Value(null);
+        if(stmt.value !is null)
+            v = evaluate(stmt.value);
+        throw returnVal(v);
     }
 
     // helper
@@ -299,6 +322,13 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
             retval = new ReturnValue;
         retval.value = v;
         return retval;
+    }
+
+    private Value lookupVariable(Token name, Expr expr) {
+        if(expr.localScope == -1)
+            return globals.get(name);
+        else
+            return environment.getAt(expr.localScope, name.lexeme);
     }
 
     // entry point

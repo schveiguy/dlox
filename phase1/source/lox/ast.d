@@ -29,6 +29,8 @@ private string genStuff(T)()
 ///// EXPRESSIONS
 
 abstract class Expr {
+    // semantic info
+    ptrdiff_t localScope = -1;
     abstract void acceptHook(Visitor!(Expr, void) visitor);
 }
 
@@ -136,6 +138,7 @@ class Function : Stmt {
 }
 
 class Return : Stmt {
+    Token keyword;
     Expr value;
     mixin(genStuff!(typeof(this)));
 }

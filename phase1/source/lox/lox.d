@@ -6,6 +6,7 @@ import lox.io;
 import lox.parser;
 import lox.ast;
 import lox.interpreter;
+import lox.resolver;
 
 Interpreter interpreter;
 static this()
@@ -20,15 +21,19 @@ bool hadRuntimeError = false;
 
 void run(const(char)[] script)
 {
-    import lox.astprinter;
     auto scanner = new Scanner(script);
     Token[] tokens = scanner.scanTokens();
     Parser parser = new Parser(tokens);
-    auto parsed = parser.parse();
+    auto statements = parser.parse();
 
     if(hadError) return;
 
-    interpreter.interpret(parsed);
+    Resolver resolver = new Resolver;
+    resolver.resolve(statements);
+    
+    if(hadError) return;
+
+    interpreter.interpret(statements);
 }
 
 private void runFile(string path) {
