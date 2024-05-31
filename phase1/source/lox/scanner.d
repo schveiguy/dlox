@@ -90,7 +90,7 @@ class Scanner {
             ++line;
             break;
 
-        case '"': string(); break;
+        case '"': makestr(); break;
 
         default:
             if(isDigit(c)) {
@@ -123,7 +123,7 @@ class Scanner {
         return true;
     }
 
-    private void string() {
+    private void makestr() {
         while(peek() != '"' && !isAtEnd()) {
             if(peek() == '\n') ++line;
             advance();

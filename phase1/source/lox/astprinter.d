@@ -45,6 +45,17 @@ class AstPrinter : Visitor!(Expr, string) {
         return parenthesize("call " ~ expr.callee.accept(this), expr.arguments);
     }
 
+    public string visit(Get expr) {
+        return expr.obj.accept(this) ~ "." ~ cast(string)expr.name.lexeme;
+    }
+    public string visit(Set expr) {
+        return parenthesize("set ", expr.obj, expr.value);
+    }
+
+    public string visit(This expr) {
+        return "this";
+    }
+
     private string parenthesize(const(char)[] name, Expr[] exprs...) {
         import std.array : Appender;
         Appender!string app;

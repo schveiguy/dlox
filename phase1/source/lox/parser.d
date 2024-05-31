@@ -25,6 +25,8 @@ private:
     Stmt declaration()
     {
         try {
+            if(match(TokenType.CLASS))
+                return classDecl();
             if(match(TokenType.VAR))
                 return varDecl();
             if(match(TokenType.FUN))
@@ -48,7 +50,7 @@ private:
         return new Var(name, initializer);
     }
 
-    Stmt funDecl(string kind)
+    Function funDecl(string kind)
     {
         auto name = consume(TokenType.IDENTIFIER, "Expect " ~ kind ~ " name.");
         consume(TokenType.LEFT_PAREN, "Expect '(' after " ~ kind ~ " name.");
@@ -63,6 +65,18 @@ private:
         consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.");
         consume(TokenType.LEFT_BRACE, "Expect '{' before " ~ kind ~ " body.");
         return new Function(name, parameters, block());
+    }
+
+    Stmt classDecl() {
+        auto className = consume(TokenType.IDENTIFIER, "Expect name for class.");
+        consume(TokenType.LEFT_BRACE, "Expect '{' after class name.");
+        Function[] methods;
+        while(!check(TokenType.RIGHT_BRACE) && !isAtEnd())
+            methods ~= funDecl("method");
+
+        consume(TokenType.RIGHT_BRACE, "Expect '}' after class definition.");
+
+        return new Class(className, methods);
     }
 
     Stmt statement() {
@@ -174,6 +188,10 @@ private:
             {
                 return new Assign(var.name, value);
             }
+            else if(auto get = cast(Get)expr)
+            {
+                return new Set(get.obj, get.name, value);
+            }
 
             error(equals, "Invalid assignment target.");
         }
@@ -279,13 +297,23 @@ private:
             callee = new Call(callee, paren, arguments);
         }
 
+        void finishGet() {
+            auto name = consume(TokenType.IDENTIFIER, "Expect identifier after object get syntax.");
+            callee = new Get(callee, name);
+        }
+
+
+
         while(true)
         {
-            if(!match(TokenType.LEFT_PAREN))
-                break;
-            else
+            if(match(TokenType.DOT))
+                finishGet();
+            if(match(TokenType.LEFT_PAREN))
                 finishCall();
+            else
+                break;
         }
+
         return callee;
     }
 
@@ -294,6 +322,7 @@ private:
         if(match(TokenType.FALSE)) return new Literal(Value(false));
         if(match(TokenType.NIL)) return new Literal(Value(null));
         if(match(TokenType.IDENTIFIER)) return new Variable(previous());
+        if(match(TokenType.THIS)) return new This(previous());
 
         if(match(TokenType.NUMBER, TokenType.STRING))
             return new Literal(previous().literal);

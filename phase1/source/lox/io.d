@@ -9,7 +9,7 @@ import std.io;
 // because we are using iopipe and not Java or Phobos, I wanted to encapsulate
 // all the io stuff in one module.
 
-char[] readText(string path) {
+const(char)[] readText(string path) {
     auto f = File(path).refCounted.bufd.assumeText;
     f.ensureElems();
     return f.window;
@@ -89,5 +89,7 @@ const(char)[] nextLine(InputLines lines)
 {
     lines.release(lines.window.length);
     lines.extend(0);
-    return lines.window;
+    // we need to dup the data because the source code might be reported to the
+    // user, and if the buffer is reused, the data might be overwritten
+    return lines.window.idup;
 }

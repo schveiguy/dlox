@@ -9,13 +9,18 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
     private bool[const(char)[]][] scopes;
     private enum FunctionType {
         NONE,
-        FUNCTION
+        FUNCTION,
+        INITIALIZER,
+        METHOD
     }
-    private FunctionType currentFunction = FunctionType.NONE;
 
-    /*this(Interpreter interpreter) {
-        this.interpreter = interpreter;
-    }*/
+    private enum ClassType {
+        NONE,
+        CLASS
+    }
+
+    private FunctionType currentFunction = FunctionType.NONE;
+    private ClassType currentClass = ClassType.NONE;
 
     void visit(Block stmt) {
         beginScope();
@@ -64,12 +69,16 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
     void visit(Print stmt) => resolve(stmt.expression);
 
     void visit(Return stmt) {
-        if(currentFunction == FunctionType.NONE) {
-            import lox.lox;
+        import lox.lox;
+        if(currentFunction == FunctionType.NONE)
             error(stmt.keyword, "Can't return from top-level code.");
-        }
+
         if(stmt.value !is null)
+        {
+            if(currentFunction == FunctionType.INITIALIZER)
+                error(stmt.keyword, "Can't return a value from an initializer.");
             resolve(stmt.value);
+        }
     }
 
     void visit(While stmt) {
@@ -87,6 +96,23 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
         resolve(stmt.body);
     }
 
+    void visit(Class stmt) {
+        ClassType enclosingClass = currentClass;
+        scope(exit) currentClass = enclosingClass;
+        currentClass = ClassType.CLASS;
+
+        declare(stmt.name);
+        define(stmt.name);
+
+        beginScope();
+        scope(exit) endScope();
+        scopes[$-1]["this"] = true;
+
+        foreach(method; stmt.methods) {
+            resolveFunction(method, method.name.lexeme == "init" ? FunctionType.INITIALIZER : FunctionType.METHOD);
+        }
+    }
+
     void visit(Binary expr) {
         resolve(expr.left);
         resolve(expr.right);
@@ -96,6 +122,23 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
         resolve(expr.callee);
         foreach(argument; expr.arguments)
             resolve(argument);
+    }
+
+    void visit(Get expr) => resolve(expr.obj);
+
+    void visit(Set expr) {
+        resolve(expr.obj);
+        resolve(expr.value);
+    }
+
+    void visit(This expr) {
+        if(currentClass == ClassType.NONE)
+        {
+            import lox.lox;
+            error(expr.keyword, "Can't use 'this' outside a class.");
+            return;
+        }
+        resolveLocal(expr, expr.keyword);
     }
 
     void visit(Grouping expr) => resolve(expr.expression);

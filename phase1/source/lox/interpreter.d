@@ -66,7 +66,7 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         environment = globals;
 
         // define some native functions
-        globals.define("clock", Value(LoxCall(name: "clock", parameters: [], nativeFn: &getTime)));
+        globals.define("clock", Value(LoxFunction(name: "clock", parameters: [], nativeFn: &getTime)));
     }
 
     // visitors
@@ -163,6 +163,10 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         return lookupVariable(expr.name, expr);
     }
 
+    Value visit(This expr) {
+        return lookupVariable(expr.keyword, expr);
+    }
+
     Value visit(Assign expr) {
         auto val = evaluate(expr.value);
         if(expr.localScope == -1)
@@ -185,12 +189,28 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         import std.algorithm;
         import std.array;
         auto callee = evaluate(expr.callee);
-        auto call = callee.match!(
-                (LoxCall call) => call,
+        Value[] arguments() => expr.arguments.map!(e => evaluate(e)).array;
+        return callee.match!(
+                (LoxFunction call) => executeCall(call, expr.paren, arguments),
+                (LoxClass klass) => executeClassCtor(klass, expr.paren, arguments),
                 _ => throw new RuntimeException(expr.paren, "bad call")
                 );
-        Value[] arguments = expr.arguments.map!(e => evaluate(e)).array;
-        return executeCall(call, expr.paren, arguments);
+    }
+
+    Value visit(Get expr) {
+        auto obj = evaluate(expr.obj);
+        return obj.match!(
+                (LoxInstance instance) => instance.get(expr.name),
+                _ => throw new RuntimeException(expr.name, "invalid property access")
+                );
+    }
+
+    Value visit(Set expr) {
+        auto obj = evaluate(expr.obj);
+        return obj.match!(
+                (LoxInstance instance) => instance.set(expr.name, evaluate(expr.value)),
+                _ => throw new RuntimeException(expr.name, "invalid property access")
+                );
     }
 
     void visit(Expression stmt) {
@@ -246,11 +266,31 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         }
     }
 
+    void visit(Class stmt) {
+        import std.algorithm;
+        import std.array;
+        environment.define(stmt.name.lexeme, Value(null));
+
+        LoxFunction[const(char)[]] methods;
+        foreach(method; stmt.methods)
+        {
+            LoxFunction fn;
+            fn.name = method.name.lexeme;
+            fn.statements = method.body;
+            fn.parameters = method.params.map!(p => p.lexeme).array;
+            fn.closure = environment;
+            methods[method.name.lexeme] = fn;
+        }
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+        environment.get(stmt.name) = Value(klass);
+    }
+
     void visit(Function stmt) {
         import std.algorithm;
         import std.array;
         // create the lox function call.
-        LoxCall fn;
+        LoxFunction fn;
         fn.name = stmt.name.lexeme;
         fn.statements = stmt.body;
         fn.parameters = stmt.params.map!(p => p.lexeme).array;
@@ -267,7 +307,7 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
     }
 
     // helper
-    private Value executeCall(LoxCall call, Token paren, Value[] arguments)
+    private Value executeCall(LoxFunction call, Token paren, Value[] arguments)
     {
         if(arguments.length != call.parameters.length)
         {
@@ -289,10 +329,32 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         try {
             executeBlock(call.statements, environment);
         } catch(ReturnValue rv) {
-            return rv.value;
+            if(!call.isInitializer)
+                return rv.value;
         }
 
+        if(call.isInitializer)
+            return call.closure.getAt(0, "this");
         return Value(null);
+    }
+
+    // helper
+    private Value executeClassCtor(LoxClass klass, Token paren, Value[] arguments)
+    {
+        // construct
+        auto instance = LoxInstance(klass);
+        if(auto init = klass.findMethod("init"))
+        {
+            executeCall(init.bind(instance), paren, arguments);
+        }
+        else if(arguments.length != 0)
+        {
+            import std.conv;
+            throw new RuntimeException(paren,
+                    text("Expected 0 arguments but got ", arguments.length, "."));
+        }
+
+        return Value(instance);
     }
 
     private void executeBlock(Stmt[] statements, Environment environment)

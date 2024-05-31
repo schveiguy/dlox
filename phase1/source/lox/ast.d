@@ -82,6 +82,24 @@ class Call : Expr {
     mixin(genStuff!(typeof(this)));
 }
 
+class Get : Expr {
+    Expr obj;
+    Token name;
+    mixin(genStuff!(typeof(this)));
+}
+
+class Set : Expr {
+    Expr obj;
+    Token name;
+    Expr value;
+    mixin(genStuff!(typeof(this)));
+}
+
+class This : Expr {
+    Token keyword;
+    mixin(genStuff!(typeof(this)));
+}
+
 ///// STATEMENTS
 
 abstract class Stmt {
@@ -140,6 +158,12 @@ class Function : Stmt {
 class Return : Stmt {
     Token keyword;
     Expr value;
+    mixin(genStuff!(typeof(this)));
+}
+
+class Class : Stmt {
+    Token name;
+    Function[] methods;
     mixin(genStuff!(typeof(this)));
 }
 
@@ -211,6 +235,9 @@ unittest {
         int visit(Assign) => 5;
         int visit(Logical) => 6;
         int visit(Call) => 7;
+        int visit(Get) => 8;
+        int visit(Set) => 9;
+        int visit(This) => 10;
     }
     auto t = new Token(TokenType.MINUS, "-", Value(null), 0);
     auto id = new Token(TokenType.IDENTIFIER, "a", Value(null), 0);
@@ -223,6 +250,9 @@ unittest {
     auto a = new Assign(id, l);
     auto log = new Logical(l, new Token(TokenType.OR, "or", Value(null), 0), l);
     auto c = new Call(v, new Token(TokenType.RIGHT_PAREN, ")", Value(null), 0), [l]);
+    auto get = new Get(v, id);
+    auto set = new Set(v, id, l);
+    auto ths = new This(new Token(TokenType.THIS, "this", Value(null), 0));
     assert(b.accept(new intVisitor) == 0);
     assert(g.accept(new intVisitor) == 1);
     assert(l.accept(new intVisitor) == 2);
@@ -231,4 +261,7 @@ unittest {
     assert(a.accept(new intVisitor) == 5);
     assert(log.accept(new intVisitor) == 6);
     assert(c.accept(new intVisitor) == 7);
+    assert(get.accept(new intVisitor) == 8);
+    assert(set.accept(new intVisitor) == 9);
+    assert(ths.accept(new intVisitor) == 10);
 }
