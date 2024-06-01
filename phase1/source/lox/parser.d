@@ -1,6 +1,7 @@
 module lox.parser;
 
 import lox.token;
+import lox.value;
 import lox.ast;
 
 final class Parser {
@@ -69,6 +70,13 @@ private:
 
     Stmt classDecl() {
         auto className = consume(TokenType.IDENTIFIER, "Expect name for class.");
+
+        Variable superclass = null;
+        if(match(TokenType.LESS))
+        {
+            consume(TokenType.IDENTIFIER, "Expect superclass name.");
+            superclass = new Variable(previous());
+        }
         consume(TokenType.LEFT_BRACE, "Expect '{' after class name.");
         Function[] methods;
         while(!check(TokenType.RIGHT_BRACE) && !isAtEnd())
@@ -76,7 +84,7 @@ private:
 
         consume(TokenType.RIGHT_BRACE, "Expect '}' after class definition.");
 
-        return new Class(className, methods);
+        return new Class(className, superclass, methods);
     }
 
     Stmt statement() {
@@ -323,6 +331,12 @@ private:
         if(match(TokenType.NIL)) return new Literal(Value(null));
         if(match(TokenType.IDENTIFIER)) return new Variable(previous());
         if(match(TokenType.THIS)) return new This(previous());
+        if(match(TokenType.SUPER)) {
+            auto keyword = previous();
+            consume(TokenType.DOT, "Expect '.' after 'super'.");
+            auto method = consume(TokenType.IDENTIFIER, "Expect superclass method name.");
+            return new Super(keyword, method);
+        }
 
         if(match(TokenType.NUMBER, TokenType.STRING))
             return new Literal(previous().literal);

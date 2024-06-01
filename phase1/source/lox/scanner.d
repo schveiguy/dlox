@@ -1,6 +1,7 @@
 module lox.scanner;
 
 import lox.token;
+import lox.value;
 import lox.lox;
 
 static immutable keywords = [

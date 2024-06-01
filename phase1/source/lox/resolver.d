@@ -2,7 +2,7 @@ module lox.resolver;
 
 import lox.ast;
 import lox.token;
-//import lox.interpreter;
+import lox.lox : error;
 
 final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
     //private Interpreter interpreter;
@@ -16,7 +16,8 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
 
     private enum ClassType {
         NONE,
-        CLASS
+        CLASS,
+        SUBCLASS
     }
 
     private FunctionType currentFunction = FunctionType.NONE;
@@ -41,7 +42,6 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
         // looking for false here.
         if(scopes.length && !scopes[$-1].get(expr.name.lexeme, true))
         {
-            import lox.lox;
             error(expr.name, "Can't read local variable in its own initializer.");
         }
 
@@ -69,7 +69,6 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
     void visit(Print stmt) => resolve(stmt.expression);
 
     void visit(Return stmt) {
-        import lox.lox;
         if(currentFunction == FunctionType.NONE)
             error(stmt.keyword, "Can't return from top-level code.");
 
@@ -104,6 +103,16 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
         declare(stmt.name);
         define(stmt.name);
 
+        if(stmt.superclass !is null) {
+            currentClass = ClassType.SUBCLASS;
+            if(stmt.name.lexeme == stmt.superclass.name.lexeme)
+                error(stmt.superclass.name, "A class can't inherit from itself.");
+            resolve(stmt.superclass);
+            beginScope();
+            scopes[$-1]["super"] = true;
+        }
+        scope(exit) if(stmt.superclass !is null) endScope();
+
         beginScope();
         scope(exit) endScope();
         scopes[$-1]["this"] = true;
@@ -134,9 +143,15 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
     void visit(This expr) {
         if(currentClass == ClassType.NONE)
         {
-            import lox.lox;
             error(expr.keyword, "Can't use 'this' outside a class.");
             return;
+        }
+        resolveLocal(expr, expr.keyword);
+    }
+
+    void visit(Super expr) {
+        if(currentClass != ClassType.SUBCLASS) {
+            error(expr.keyword, "Can't user 'super' outside of a subclass.");
         }
         resolveLocal(expr, expr.keyword);
     }
@@ -178,7 +193,6 @@ final class Resolver : Visitor!(Expr, void), Visitor!(Stmt, void) {
     private void declare(Token name) {
         if(scopes.length == 0) return;
 
-        import lox.lox;
         scopes[$-1].update(name.lexeme,
                 () => false,
                 (bool val) {

@@ -56,6 +56,10 @@ class AstPrinter : Visitor!(Expr, string) {
         return "this";
     }
 
+    public string visit(Super expr) {
+        return "super." ~ cast(string)expr.method.lexeme;
+    }
+
     private string parenthesize(const(char)[] name, Expr[] exprs...) {
         import std.array : Appender;
         Appender!string app;

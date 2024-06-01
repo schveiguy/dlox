@@ -2,9 +2,8 @@ module lox.interpreter;
 
 import lox.ast;
 import lox.token;
+import lox.value;
 import lox.io;
-
-import std.sumtype : match;
 
 // native functions we want to expose
 private Value getTime(Value[] parameters)
@@ -167,6 +166,24 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         return lookupVariable(expr.keyword, expr);
     }
 
+    Value visit(Super expr) {
+        auto distance = expr.localScope;
+        LoxClass superclass = environment.getAt(expr.localScope, "super")
+            .match!((LoxClass c) => c,
+                    _ => throw new RuntimeException(expr.keyword, "bad super")
+                   );
+        LoxInstance obj = environment.getAt(expr.localScope - 1, "this")
+            .match!((LoxInstance i) => i,
+                    _ => throw new RuntimeException(expr.keyword, "bad this")
+                   );
+        auto method = superclass.findMethod(expr.method.lexeme);
+        if(!method) {
+            throw new RuntimeException(expr.method,
+                    "Undefined property '" ~ cast(string)expr.method.lexeme ~ "'.");
+        }
+        return Value(method.bind(obj));
+    }
+
     Value visit(Assign expr) {
         auto val = evaluate(expr.value);
         if(expr.localScope == -1)
@@ -271,6 +288,17 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
         import std.array;
         environment.define(stmt.name.lexeme, Value(null));
 
+        LoxClass superclass = null;
+        if(stmt.superclass !is null) {
+            auto sup = evaluate(stmt.superclass);
+            superclass = sup.match!(
+                    (LoxClass c) => c,
+                    _ => throw new RuntimeException(stmt.superclass.name, "Superclass must be a class.")
+                    );
+            environment = new Environment(environment);
+            environment.define("super", Value(superclass));
+        }
+
         LoxFunction[const(char)[]] methods;
         foreach(method; stmt.methods)
         {
@@ -282,7 +310,11 @@ final class Interpreter : Visitor!(Expr, Value), Visitor!(Stmt, void) {
             methods[method.name.lexeme] = fn;
         }
 
-        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+        LoxClass klass = new LoxClass(stmt.name.lexeme, superclass, methods);
+
+        if(superclass !is null)
+            environment = environment.enclosing;
+
         environment.get(stmt.name) = Value(klass);
     }
 

@@ -1,5 +1,6 @@
 module lox.ast;
 import lox.token;
+import lox.value;
 
 // the D way ;)
 private string genStuff(T)()
@@ -100,6 +101,12 @@ class This : Expr {
     mixin(genStuff!(typeof(this)));
 }
 
+class Super : Expr {
+    Token keyword;
+    Token method;
+    mixin(genStuff!(typeof(this)));
+}
+
 ///// STATEMENTS
 
 abstract class Stmt {
@@ -163,6 +170,7 @@ class Return : Stmt {
 
 class Class : Stmt {
     Token name;
+    Variable superclass;
     Function[] methods;
     mixin(genStuff!(typeof(this)));
 }
