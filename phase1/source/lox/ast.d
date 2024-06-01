@@ -35,73 +35,73 @@ abstract class Expr {
     abstract void acceptHook(Visitor!(Expr, void) visitor);
 }
 
-class Binary : Expr {
+final class Binary : Expr {
     Expr left;
     Token operator;
     Expr right;
     mixin(genStuff!(typeof(this)));
 }
 
-class Grouping : Expr {
+final class Grouping : Expr {
     Expr expression;
     mixin(genStuff!(typeof(this)));
 }
 
-class Literal : Expr {
+final class Literal : Expr {
     Value value;
     mixin(genStuff!(typeof(this)));
 }
 
-class Unary : Expr {
+final class Unary : Expr {
     Token operator;
     Expr right;
     mixin(genStuff!(typeof(this)));
 }
 
-class Variable : Expr {
+final class Variable : Expr {
     Token name;
     mixin(genStuff!(typeof(this)));
 }
 
-class Assign : Expr {
+final class Assign : Expr {
     Token name;
     Expr value;
     mixin(genStuff!(typeof(this)));
 }
 
-class Logical : Expr {
+final class Logical : Expr {
     Expr left;
     Token operator;
     Expr right;
     mixin(genStuff!(typeof(this)));
 }
 
-class Call : Expr {
+final class Call : Expr {
     Expr callee;
     Token paren;
     Expr[] arguments;
     mixin(genStuff!(typeof(this)));
 }
 
-class Get : Expr {
+final class Get : Expr {
     Expr obj;
     Token name;
     mixin(genStuff!(typeof(this)));
 }
 
-class Set : Expr {
+final class Set : Expr {
     Expr obj;
     Token name;
     Expr value;
     mixin(genStuff!(typeof(this)));
 }
 
-class This : Expr {
+final class This : Expr {
     Token keyword;
     mixin(genStuff!(typeof(this)));
 }
 
-class Super : Expr {
+final class Super : Expr {
     Token keyword;
     Token method;
     mixin(genStuff!(typeof(this)));
@@ -113,41 +113,41 @@ abstract class Stmt {
     abstract void acceptHook(Visitor!(Stmt, void) visitor);
 }
 
-class Expression : Stmt {
+final class Expression : Stmt {
     Expr expression;
     mixin(genStuff!(typeof(this)));
 }
 
-class Print : Stmt {
+final class Print : Stmt {
     Expr expression;
     mixin(genStuff!(typeof(this)));
 }
 
-class Var : Stmt {
+final class Var : Stmt {
     Token name;
     Expr initializer;
     mixin(genStuff!(typeof(this)));
 }
 
-class Block : Stmt {
+final class Block : Stmt {
     Stmt[] statements;
     mixin(genStuff!(typeof(this)));
 }
 
-class If : Stmt {
+final class If : Stmt {
     Expr condition;
     Stmt thenBranch;
     Stmt elseBranch;
     mixin(genStuff!(typeof(this)));
 }
 
-class While : Stmt {
+final class While : Stmt {
     Expr condition;
     Stmt body;
     mixin(genStuff!(typeof(this)));
 }
 
-class For : Stmt {
+final class For : Stmt {
     Stmt declaration;
     Expr condition;
     Expr increment;
@@ -155,20 +155,20 @@ class For : Stmt {
     mixin(genStuff!(typeof(this)));
 }
 
-class Function : Stmt {
+final class Function : Stmt {
     Token name;
     Token[] params;
     Stmt[] body;
     mixin(genStuff!(typeof(this)));
 }
 
-class Return : Stmt {
+final class Return : Stmt {
     Token keyword;
     Expr value;
     mixin(genStuff!(typeof(this)));
 }
 
-class Class : Stmt {
+final class Class : Stmt {
     Token name;
     Variable superclass;
     Function[] methods;
@@ -203,7 +203,7 @@ R accept(Base, R)(Base item, Visitor!(Base, R) visitor)
         // void returns do not need an intermediate
         return item.acceptHook(visitor);
     else {
-        static class WrappingVisitor : Visitor!(Base, void) {
+        static final class WrappingVisitor : Visitor!(Base, void) {
             private Visitor!(Base, R) realVisitor;
             private R returnValue;
             this(Visitor!(Base, R) rv) {

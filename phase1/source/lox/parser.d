@@ -310,13 +310,11 @@ private:
             callee = new Get(callee, name);
         }
 
-
-
         while(true)
         {
             if(match(TokenType.DOT))
                 finishGet();
-            if(match(TokenType.LEFT_PAREN))
+            else if(match(TokenType.LEFT_PAREN))
                 finishCall();
             else
                 break;
