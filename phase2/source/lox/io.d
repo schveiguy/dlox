@@ -86,7 +86,17 @@ void writeln(OutputStream stream, const(char)[] data, bool doFlush = true)
         stream.flush();
 }
 
-void writeln(Args...)(OutputStream stream, InterpolationHeader, Args args, InterpolationFooter, bool doFlush = true)
+void writeln(OutputStream stream, bool doFlush = true)
+{
+    writeln(stream, "", doFlush);
+}
+
+void writeln(Args...)(OutputStream stream, InterpolationHeader head, Args args, InterpolationFooter foot)
+{
+    writeln(stream, head, args, foot, true);
+}
+
+void writeln(Args...)(OutputStream stream, InterpolationHeader, Args args, InterpolationFooter, bool doFlush)
 {
     import std.conv;
     static foreach(i; 0 .. Args.length)
@@ -99,7 +109,12 @@ void writeln(Args...)(OutputStream stream, InterpolationHeader, Args args, Inter
     stream.write("\n", doFlush);
 }
 
-void write(Args...)(OutputStream stream, InterpolationHeader, Args args, InterpolationFooter, bool doFlush = true)
+void write(Args...)(OutputStream stream, InterpolationHeader head, Args args, InterpolationFooter foot)
+{
+    write(stream, head, args, foot, true);
+}
+
+void write(Args...)(OutputStream stream, InterpolationHeader, Args args, InterpolationFooter, bool doFlush)
 {
     import std.conv;
     static foreach(i; 0 .. Args.length)
