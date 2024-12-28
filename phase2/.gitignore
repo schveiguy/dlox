@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/dlox2
+libdlox2.so
+libdlox2.dylib
+dlox2.dll
+libdlox2.a
+dlox2.lib
+dlox2-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
