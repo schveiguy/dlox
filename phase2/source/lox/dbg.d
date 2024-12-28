@@ -28,8 +28,18 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
 
     ubyte instruction = chunk.code[offset];
     switch(instruction) {
-        case OpCode.OP_CONSTANT:
+        case OpCode.CONSTANT:
             return constantInstruction("OP_CONSTANT", chunk, offset);
+        case OpCode.ADD:
+            return simpleInstruction("OP_ADD", offset);
+        case OpCode.SUBTRACT:
+            return simpleInstruction("OP_SUBTRACT", offset);
+        case OpCode.MULTIPLY:
+            return simpleInstruction("OP_MULTIPLY", offset);
+        case OpCode.DIVIDE:
+            return simpleInstruction("OP_DIVIDE", offset);
+        case OpCode.NEGATE:
+            return simpleInstruction("OP_NEGATE", offset);
         case OpCode.RETURN:
             return simpleInstruction("OP_RETURN", offset);
         default:

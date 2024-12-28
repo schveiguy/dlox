@@ -4,7 +4,12 @@ import lox.value;
 
 enum OpCode : ubyte
 {
-    OP_CONSTANT,
+    CONSTANT,
+    ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
+    NEGATE,
     RETURN,
 }
 
