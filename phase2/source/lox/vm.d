@@ -58,7 +58,7 @@ struct VM {
                     BINARY_OP!"+"();
                     break;
                 case OpCode.SUBTRACT:
-                    BINARY_OP!"="();
+                    BINARY_OP!"-"();
                     break;
                 case OpCode.MULTIPLY:
                     BINARY_OP!"*"();
@@ -110,6 +110,14 @@ Value pop() {
 }
 
 InterpretResult interpret(const(char)[] source) {
-    compile(source);
-    return InterpretResult.OK;
+    Chunk chunk;
+
+    if(!compile(source, &chunk))
+        return InterpretResult.COMPILE_ERROR;
+
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk.code;
+
+    InterpretResult result = vm.run();
+    return result;
 }

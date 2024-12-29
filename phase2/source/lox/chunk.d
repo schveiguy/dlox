@@ -45,9 +45,8 @@ struct Chunk
         }
     }
     
-    ubyte addConstant(Value val) {
+    int addConstant(Value val) {
         constants.write(val);
-        assert(constants.count <= ubyte.max + 1);
-        return cast(ubyte)(constants.count - 1);
+        return constants.count - 1;
     }
 }
