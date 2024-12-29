@@ -3,6 +3,7 @@ module lox.vm;
 import lox.chunk;
 import lox.io;
 import lox.value;
+import lox.compiler;
 
 enum InterpretResult {
     OK,
@@ -108,8 +109,7 @@ Value pop() {
     return vm.pop();
 }
 
-InterpretResult interpret(Chunk* chunk) {
-    vm.chunk = chunk;
-    vm.ip = vm.chunk.code;
-    return vm.run();
+InterpretResult interpret(const(char)[] source) {
+    compile(source);
+    return InterpretResult.OK;
 }

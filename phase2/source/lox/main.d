@@ -1,35 +1,40 @@
 module lox.main;
 import lox.chunk;
 import lox.vm;
+import lox.io;
 
 int main(string[] args)
 {
     initVM();
-    Chunk chunk;
-    
-    auto constant = chunk.addConstant(1.2);
-    chunk.write(OpCode.CONSTANT, 123);
-    chunk.write(constant, 123);
-    
-    constant = chunk.addConstant(3.4);
-    chunk.write(OpCode.CONSTANT, 123);
-    chunk.write(constant, 123);
+    scope(exit) freeVM();
 
-    chunk.write(OpCode.ADD, 123);
-    
-    constant = chunk.addConstant(5.6);
-    chunk.write(OpCode.CONSTANT, 123);
-    chunk.write(constant, 123);
+    if(args.length == 1)
+        repl();
+    else if(args.length == 2)
+        return runFile(args[1]);
+    else
+    {
+        errStream.writeln("Usage: dlox2 [path]");
+        return 64;
+    }
+    return 0;
+}
 
-    chunk.write(OpCode.DIVIDE, 123);
-    chunk.write(OpCode.NEGATE, 123);
+private void repl() {
+    while(true) {
+        outStream.write("> ");
+        auto line = inStream.nextLine;
+        if(line.length == 0)
+            break;
+        interpret(line);
+    }
+}
 
-    chunk.write(OpCode.RETURN, 123);
+private int runFile(string path) {
+    auto source = readText(path);
+    auto result = interpret(source);
 
-    import lox.dbg;
-    chunk.disassembleChunk("test chunk");
-    interpret(&chunk);
-    
-    freeVM();
+    if(result == InterpretResult.COMPILE_ERROR) return 65;
+    if(result == InterpretResult.RUNTIME_ERROR) return 70;
     return 0;
 }
