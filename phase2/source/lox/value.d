@@ -117,6 +117,15 @@ string getError(Value v)
     );
 }
 
+string extractString(Value v)
+{
+    // must be a string type
+    return v.match!(
+            (string s) => s,
+            x => assert(0, "Somehow tried to extract a string from a non string value.")
+    );
+}
+
 string internString(string s)
 {
     import lox.vm;

@@ -28,7 +28,7 @@ enum Precedence {
     PRIMARY
 }
 
-alias void function() ParseFn;
+alias void function(bool canAssign) ParseFn;
 
 struct ParseRule {
     ParseFn prefix;
@@ -51,8 +51,9 @@ bool compile(const(char)[] source, Chunk* chunk)
     parser.hadError = false;
     parser.panicMode = false;
     advance();
-    expression();
-    consume(TokenType.EOF, "Expect end of expression.");
+    while (!match(TokenType.EOF)) {
+        declaration();
+    }
     endCompiler();
     return !parser.hadError;
 }
@@ -111,7 +112,7 @@ private void endCompiler() {
     }
 }
 
-private void binary() {
+private void binary(bool) {
     TokenType operatorType = parser.previous.type;
     ParseRule* rule = getRule(operatorType);
     parsePrecedence(cast(Precedence)(rule.precedence + 1));
@@ -131,7 +132,7 @@ private void binary() {
     }
 }
 
-private void literal() {
+private void literal(bool) {
     with(TokenType) /*with(Opcode)*/ switch(parser.previous.type) {
         case FALSE: emitByte(OpCode.FALSE); break;
         case NIL: emitByte(OpCode.NIL); break;
@@ -144,12 +145,100 @@ private void expression() {
     parsePrecedence(Precedence.ASSIGNMENT);
 }
 
-private void grouping() {
+private void printStatement() {
+    expression();
+    consume(TokenType.SEMICOLON, "Expect ';' after value.");
+    emitByte(OpCode.PRINT);
+}
+
+private void expressionStatement() {
+    expression();
+    consume(TokenType.SEMICOLON, "Expect ';' after expression.");
+    emitByte(OpCode.POP);
+}
+
+private void declaration() {
+    if(match(TokenType.VAR)) {
+        varDeclaration();
+    } else {
+        statement();
+    }
+
+    if (parser.panicMode) synchronize();
+}
+
+private void varDeclaration() {
+    ubyte global = parseVariable("Expect variable name.");
+
+    if (match(TokenType.EQUAL)) {
+        expression();
+    } else {
+        emitByte(OpCode.NIL);
+    }
+
+    consume(TokenType.SEMICOLON,
+            "Expect ';' after vraiable declaration.");
+
+    defineVariable(global);
+}
+
+private ubyte parseVariable(string errorMessage) {
+    consume(TokenType.IDENTIFIER, errorMessage);
+    return identifierConstant(&parser.previous);
+}
+
+private ubyte identifierConstant(Token* name) {
+    return makeConstant(Value(internString(name.lexeme.idup)));
+}
+
+private void defineVariable(ubyte global) {
+    emitBytes(OpCode.DEFINE_GLOBAL, global);
+}
+
+private void synchronize() {
+    parser.panicMode = false;
+    with(TokenType) while(parser.current.type != EOF) {
+        if(parser.previous.type == SEMICOLON) return;
+        switch(parser.current.type) {
+            case CLASS:
+            case FUN:
+            case VAR:
+            case FOR:
+            case IF:
+            case WHILE:
+            case PRINT:
+            case RETURN:
+                return;
+            default:
+                break;
+        }
+
+        advance();
+    }
+}
+
+private void statement() {
+    if (match(TokenType.PRINT)) {
+        printStatement();
+    } else {
+        expressionStatement();
+    }
+}
+
+private bool match(TokenType type) {
+    if (!check(type)) return false;
+    advance();
+    return true;
+}
+
+private bool check(TokenType type) => parser.current.type == type;
+
+private void grouping(bool) {
     expression();
     consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.");
 }
 
-private void unary() {
+private void unary(bool) {
     TokenType operatorType = parser.previous.type;
 
     // Compile the operand.
@@ -182,7 +271,7 @@ ParseRule[] rules = [
   TokenType.GREATER_EQUAL: ParseRule(null,      &binary, Precedence.COMPARISON),
   TokenType.LESS:          ParseRule(null,      &binary, Precedence.COMPARISON),
   TokenType.LESS_EQUAL:    ParseRule(null,      &binary, Precedence.COMPARISON),
-  TokenType.IDENTIFIER:    ParseRule(null,      null,    Precedence.NONE),
+  TokenType.IDENTIFIER:    ParseRule(&variable, null,    Precedence.NONE),
   TokenType.STRING:        ParseRule(&str,      null,    Precedence.NONE),
   TokenType.NUMBER:        ParseRule(&number,   null,    Precedence.NONE),
   TokenType.AND:           ParseRule(null,      null,    Precedence.NONE),
@@ -212,29 +301,48 @@ private void parsePrecedence(Precedence precedence) {
         error("Expect expression.");
         return;
     }
-    prefixRule();
+
+    auto canAssign = precedence <= Precedence.ASSIGNMENT;
+    prefixRule(canAssign);
 
     while(precedence <= getRule(parser.current.type).precedence) {
         advance();
         auto infixRule = getRule(parser.previous.type).infix;
         assert(infixRule);
-        infixRule();
+        infixRule(canAssign);
     }
 
+    if(canAssign && match(TokenType.EQUAL)) {
+        error("Invalid assignment target.");
+    }
 }
 
 private ParseRule* getRule(TokenType type) => &rules[type];
 
-private void number() {
+private void number(bool) {
     import std.conv;
     Value value = Value(parser.previous.lexeme.to!double);
     emitConstant(value);
 }
 
-private void str() {
+private void str(bool) {
     // idup all strings, not sure when the source will go away.
     Value value = Value(internString(parser.previous.lexeme[1 .. $-1].idup));
     emitConstant(value);
+}
+
+private void variable(bool canAssign) {
+    namedVariable(parser.previous, canAssign);
+}
+
+private void namedVariable(Token name, bool canAssign) {
+    ubyte arg = identifierConstant(&name);
+    if (canAssign && match(TokenType.EQUAL)) {
+        expression();
+        emitBytes(OpCode.SET_GLOBAL, arg);
+    } else {
+        emitBytes(OpCode.GET_GLOBAL, arg);
+    }
 }
 
 private void errorAtCurrent(const(char)[] message) {

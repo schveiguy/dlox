@@ -8,6 +8,10 @@ enum OpCode : ubyte
     NIL,
     TRUE,
     FALSE,
+    POP,
+    GET_GLOBAL,
+    DEFINE_GLOBAL,
+    SET_GLOBAL,
     EQUAL,
     GREATER,
     LESS,
@@ -17,6 +21,7 @@ enum OpCode : ubyte
     DIVIDE,
     NOT,
     NEGATE,
+    PRINT,
     RETURN,
 }
 

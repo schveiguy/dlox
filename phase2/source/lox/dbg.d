@@ -36,6 +36,12 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_TRUE", offset);
         case FALSE:
             return simpleInstruction("OP_FALSE", offset);
+        case DEFINE_GLOBAL:
+            return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+        case GET_GLOBAL:
+            return constantInstruction("OP_GET_GLOBAL", chunk, offset);
+        case SET_GLOBAL:
+            return constantInstruction("OP_SET_GLOBAL", chunk, offset);
         case EQUAL:
             return simpleInstruction("OP_EQUAL", offset);
         case GREATER:
@@ -54,6 +60,10 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_NEGATE", offset);
         case NOT:
             return simpleInstruction("OP_NOT", offset);
+        case PRINT:
+            return simpleInstruction("OP_PRINT", offset);
+        case POP:
+            return simpleInstruction("OP_POP", offset);
         case RETURN:
             return simpleInstruction("OP_RETURN", offset);
         default:

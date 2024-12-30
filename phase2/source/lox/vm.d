@@ -21,6 +21,7 @@ struct VM {
     Value[STACK_MAX] stack;
     Value* stackTop;
     string[string] strings;
+    Value[string] globals;
 
     InterpretResult run() {
         ubyte READ_BYTE() {
@@ -124,9 +125,45 @@ struct VM {
                     }
                     push(result);
                     break;
-                case RETURN:
+                case PRINT:
                     printValue(pop());
                     outStream.writeln();
+                    break;
+                case POP:
+                    pop();
+                    break;
+                case DEFINE_GLOBAL:
+                    auto nameVal = READ_CONSTANT();
+                    string name = nameVal.extractString();
+                    globals[name] = pop();
+                    break;
+                case GET_GLOBAL:
+                    auto nameVal = READ_CONSTANT();
+                    string name = nameVal.extractString();
+                    if(auto v = name in globals) {
+                        push(*v);
+                    } else {
+                        import std.conv;
+                        runtimeError(i"Undefined variable '$(name)'".text);
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    break;
+                case SET_GLOBAL:
+                    auto nameVal = READ_CONSTANT();
+                    string name = nameVal.extractString();
+                    if(auto v = name in globals) {
+                        auto val = pop();
+                        *v = val;
+                        // leave it there
+                        push(val);
+                    } else {
+                        import std.conv;
+                        runtimeError(i"Undefined variable '$(name)'".text);
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    break;
+                case RETURN:
+                    // Exit interpreter.
                     return InterpretResult.OK;
             }
         }
