@@ -71,9 +71,6 @@ struct VM {
                 case FALSE:
                     push(Value(false));
                     break;
-                case ADD:
-                    if(!BINARY_OP!"+"()) return InterpretResult.RUNTIME_ERROR;
-                    break;
                 case EQUAL:
                     auto b = pop();
                     auto a = pop();
@@ -84,6 +81,19 @@ struct VM {
                     break;
                 case LESS:
                     if(!BINARY_OP!"<"()) return InterpretResult.RUNTIME_ERROR;
+                    break;
+                case ADD:
+                    // handle add differently, as it needs to deal with strings and numbers.
+                    auto b = pop();
+                    auto a = pop();
+                    auto result = addValues(a, b);
+                    if(auto msg = result.getError()) {
+                        push(a); // put the values back.
+                        push(b);
+                        runtimeError(msg);
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    push(result);
                     break;
                 case SUBTRACT:
                     if(!BINARY_OP!"-"()) return InterpretResult.RUNTIME_ERROR;

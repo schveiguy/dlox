@@ -1,4 +1,5 @@
 module lox.value;
+import lox.obj;
 
 import std.sumtype; // going to use this instead of custom-built tagged union
 
@@ -25,7 +26,7 @@ struct ErrStr {
     string msg;
 }
 
-alias Value = SumType!(double, bool, typeof(null), ErrStr);
+alias Value = SumType!(typeof(null), double, bool, string, Obj*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -79,6 +80,20 @@ Value numOp(string op)(Value v1, Value v2)
     return match!(
             binop,
             (a, b) => Value(ErrStr("Operands must be numbers."))
+    )(v1, v2);
+}
+
+Value addValues(Value v1, Value v2)
+{
+    static Value numadd(T, U)(T a, U b) if (is(T == double) && is(U == double))
+    {
+        return Value(a + b);
+    }
+
+    return match!(
+            (string s1, string s2) => Value(s1 ~ s2),
+            numadd,
+            (a, b) => Value(ErrStr("Operands must be two numbers or two strings."))
     )(v1, v2);
 }
 

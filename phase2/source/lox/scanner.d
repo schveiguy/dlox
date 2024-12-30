@@ -166,6 +166,7 @@ struct Scanner
         while(n != '\0' && n != '"') {
             if(n == '\n') ++line;
             advance();
+            n = peek();
         }
 
         if(n == '\0') return errorToken("Unterminated string.");

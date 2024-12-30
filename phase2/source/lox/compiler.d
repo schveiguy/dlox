@@ -183,7 +183,7 @@ ParseRule[] rules = [
   TokenType.LESS:          ParseRule(null,      &binary, Precedence.COMPARISON),
   TokenType.LESS_EQUAL:    ParseRule(null,      &binary, Precedence.COMPARISON),
   TokenType.IDENTIFIER:    ParseRule(null,      null,    Precedence.NONE),
-  TokenType.STRING:        ParseRule(null,      null,    Precedence.NONE),
+  TokenType.STRING:        ParseRule(&str,      null,    Precedence.NONE),
   TokenType.NUMBER:        ParseRule(&number,   null,    Precedence.NONE),
   TokenType.AND:           ParseRule(null,      null,    Precedence.NONE),
   TokenType.CLASS:         ParseRule(null,      null,    Precedence.NONE),
@@ -228,6 +228,12 @@ private ParseRule* getRule(TokenType type) => &rules[type];
 private void number() {
     import std.conv;
     Value value = Value(parser.previous.lexeme.to!double);
+    emitConstant(value);
+}
+
+private void str() {
+    // idup all strings, not sure when the source will go away.
+    Value value = Value(parser.previous.lexeme[1 .. $-1].idup);
     emitConstant(value);
 }
 
