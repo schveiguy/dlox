@@ -234,7 +234,7 @@ struct Scanner
     TokenType checkKeyword(int sidx, string match, TokenType type)
     {
         if(current - start - sidx == match.length &&
-                start[sidx .. match.length] == match)
+                start[sidx .. sidx + match.length] == match)
         {
             return type;
         }

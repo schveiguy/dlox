@@ -27,20 +27,34 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
     }
 
     ubyte instruction = chunk.code[offset];
-    switch(instruction) {
-        case OpCode.CONSTANT:
+    with(OpCode) switch(instruction) {
+        case CONSTANT:
             return constantInstruction("OP_CONSTANT", chunk, offset);
-        case OpCode.ADD:
+        case NIL:
+            return simpleInstruction("OP_NIL", offset);
+        case TRUE:
+            return simpleInstruction("OP_TRUE", offset);
+        case FALSE:
+            return simpleInstruction("OP_FALSE", offset);
+        case EQUAL:
+            return simpleInstruction("OP_EQUAL", offset);
+        case GREATER:
+            return simpleInstruction("OP_GREATER", offset);
+        case LESS:
+            return simpleInstruction("OP_LESS", offset);
+        case ADD:
             return simpleInstruction("OP_ADD", offset);
-        case OpCode.SUBTRACT:
+        case SUBTRACT:
             return simpleInstruction("OP_SUBTRACT", offset);
-        case OpCode.MULTIPLY:
+        case MULTIPLY:
             return simpleInstruction("OP_MULTIPLY", offset);
-        case OpCode.DIVIDE:
+        case DIVIDE:
             return simpleInstruction("OP_DIVIDE", offset);
-        case OpCode.NEGATE:
+        case NEGATE:
             return simpleInstruction("OP_NEGATE", offset);
-        case OpCode.RETURN:
+        case NOT:
+            return simpleInstruction("OP_NOT", offset);
+        case RETURN:
             return simpleInstruction("OP_RETURN", offset);
         default:
             o.writeln(i"Unknown opcode $(instruction)");

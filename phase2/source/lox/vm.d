@@ -28,10 +28,18 @@ struct VM {
 
         Value READ_CONSTANT() => chunk.constants.values[READ_BYTE()];
 
-        void BINARY_OP(string op)() {
+        bool BINARY_OP(string op)() {
             auto b = pop();
             auto a = pop();
-            push(mixin("a " ~ op ~ " b"));
+            auto result = numOp!op(a, b);
+            if(auto msg = result.getError()) {
+                push(a); // put them back on the stack
+                push(b);
+                runtimeError("Operands must be numbers.");
+                return false;
+            }
+            push(result);
+            return true;
         }
 
         for (;;) {
@@ -49,27 +57,62 @@ struct VM {
                 disassembleInstruction(*chunk, cast(int)(chunk.code.length - ip.length));
             }
             ubyte instruction;
-            final switch(instruction = READ_BYTE()) {
-                case OpCode.CONSTANT:
+            with(OpCode) final switch(instruction = READ_BYTE()) {
+                case CONSTANT:
                     Value constant = READ_CONSTANT();
                     push(constant);
                     break;
-                case OpCode.ADD:
-                    BINARY_OP!"+"();
+                case NIL:
+                    push(Value(null));
                     break;
-                case OpCode.SUBTRACT:
-                    BINARY_OP!"-"();
+                case TRUE:
+                    push(Value(true));
                     break;
-                case OpCode.MULTIPLY:
-                    BINARY_OP!"*"();
+                case FALSE:
+                    push(Value(false));
                     break;
-                case OpCode.DIVIDE:
-                    BINARY_OP!"/"();
+                case ADD:
+                    if(!BINARY_OP!"+"()) return InterpretResult.RUNTIME_ERROR;
                     break;
-                case OpCode.NEGATE:
-                    push(-pop());
+                case EQUAL:
+                    auto b = pop();
+                    auto a = pop();
+                    push(valueEqual(a, b));
                     break;
-                case OpCode.RETURN:
+                case GREATER:
+                    if(!BINARY_OP!">"()) return InterpretResult.RUNTIME_ERROR;
+                    break;
+                case LESS:
+                    if(!BINARY_OP!"<"()) return InterpretResult.RUNTIME_ERROR;
+                    break;
+                case SUBTRACT:
+                    if(!BINARY_OP!"-"()) return InterpretResult.RUNTIME_ERROR;
+                    break;
+                case MULTIPLY:
+                    if(!BINARY_OP!"*"()) return InterpretResult.RUNTIME_ERROR;
+                    break;
+                case DIVIDE:
+                    if(!BINARY_OP!"/"()) return InterpretResult.RUNTIME_ERROR;
+                    break;
+                case NOT:
+                    auto val = pop();
+                    auto result = val.not();
+                    // note, this never is an error. All values can be NOT-ed
+                    assert(result.getError() is null);
+                    push(result);
+                    break;
+                case NEGATE:
+                    auto val = pop();
+                    auto result = val.negate();
+                    if(auto msg = result.getError())
+                    {
+                        push(val); // put it back
+                        runtimeError(msg);
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    push(result);
+                    break;
+                case RETURN:
                     printValue(pop());
                     outStream.writeln();
                     return InterpretResult.OK;
@@ -89,6 +132,13 @@ struct VM {
     Value pop() {
         assert(stackTop > stack.ptr);
         return *(--stackTop);
+    }
+
+    void runtimeError(string msg) {
+        errStream.writeln(msg, false);
+        size_t instruction = ip.ptr - chunk.code.ptr - 1;
+        int line = chunk.lines[instruction];
+        errStream.writeln(i`[line $(line)] in script`);
     }
 }
 
