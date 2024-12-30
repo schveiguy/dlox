@@ -42,6 +42,10 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return constantInstruction("OP_GET_GLOBAL", chunk, offset);
         case SET_GLOBAL:
             return constantInstruction("OP_SET_GLOBAL", chunk, offset);
+        case GET_LOCAL:
+            return byteInstruction("OP_GET_LOCAL", chunk, offset);
+        case SET_LOCAL:
+            return byteInstruction("OP_SET_LOCAL", chunk, offset);
         case EQUAL:
             return simpleInstruction("OP_EQUAL", offset);
         case GREATER:
@@ -84,5 +88,12 @@ private int constantInstruction(string name, ref const Chunk chunk, int offset) 
     o.write(i`$(name.formatted("%-16s")) $(offset.formatted("%4d")) '`, false);
     printValue(chunk.constants.values[constant]);
     o.writeln("'");
+    return offset + 2;
+}
+
+private int byteInstruction(string name, ref const Chunk chunk, int offset) {
+    auto o = outStream;
+    ubyte slot = chunk.code[offset + 1];
+    o.writeln(i`$(name.formatted("%-16s")) $(slot.formatted("%4d"))`);
     return offset + 2;
 }

@@ -137,6 +137,16 @@ struct VM {
                     string name = nameVal.extractString();
                     globals[name] = pop();
                     break;
+                case GET_LOCAL:
+                    auto idx = READ_BYTE();
+                    push(stackLocal(idx));
+                    break;
+                case SET_LOCAL:
+                    auto idx = READ_BYTE();
+                    auto val = pop();
+                    push(val);
+                    stackLocal(idx) = val;
+                    break;
                 case GET_GLOBAL:
                     auto nameVal = READ_CONSTANT();
                     string name = nameVal.extractString();
@@ -176,6 +186,11 @@ struct VM {
     void push(Value value) {
         assert(stackTop < stack.ptr + stack.length);
         *stackTop++ = value;
+    }
+
+    ref Value stackLocal(ubyte idx) {
+        assert(stack.ptr + idx < stackTop);
+        return stack[idx];
     }
 
     Value pop() {

@@ -14,6 +14,17 @@ struct Parser {
     bool panicMode;
 }
 
+struct Compiler {
+    Local[ubyte.max + 1] locals;
+    int localCount;
+    int scopeDepth;
+}
+
+struct Local {
+    Token name;
+    int depth;
+}
+
 enum Precedence {
     NONE,
     ASSIGNMENT,  // =
@@ -37,7 +48,14 @@ struct ParseRule {
 }
 
 Parser parser;
+Compiler* current;
 Chunk* compilingChunk;
+
+private void initCompiler(Compiler * compiler) {
+    compiler.localCount = 0;
+    compiler.scopeDepth = 0;
+    current = compiler;
+}
 
 private Chunk* currentChunk() {
     return compilingChunk;
@@ -46,6 +64,8 @@ private Chunk* currentChunk() {
 bool compile(const(char)[] source, Chunk* chunk)
 {
     initScanner(source);
+    Compiler compiler;
+    initCompiler(&compiler);
     compilingChunk = chunk;
 
     parser.hadError = false;
@@ -184,6 +204,10 @@ private void varDeclaration() {
 
 private ubyte parseVariable(string errorMessage) {
     consume(TokenType.IDENTIFIER, errorMessage);
+
+    declareVariable();
+    if(current.scopeDepth > 0) return 0;
+
     return identifierConstant(&parser.previous);
 }
 
@@ -192,7 +216,44 @@ private ubyte identifierConstant(Token* name) {
 }
 
 private void defineVariable(ubyte global) {
+    if (current.scopeDepth > 0) {
+        markInitialized();
+        return;
+    }
+
     emitBytes(OpCode.DEFINE_GLOBAL, global);
+}
+
+private void markInitialized() {
+    current.locals[current.localCount - 1].depth = current.scopeDepth;
+}
+
+private void declareVariable() {
+    if (current.scopeDepth == 0) return;
+
+    auto name = &parser.previous;
+
+    foreach_reverse(i; 0 .. current.localCount) {
+        auto local = &current.locals[i];
+        if(local.depth != -1 && local.depth < current.scopeDepth) {
+            break;
+        }
+
+        if(name.lexeme == local.name.lexeme) {
+            error("Already a variable with this name in the scope.");
+        }
+    }
+    addLocal(*name);
+}
+
+private void addLocal(Token name) {
+    if(current.localCount == current.locals.length) {
+        error("Too many local variables in function.");
+        return;
+    }
+    Local* local = &current.locals[current.localCount++];
+    local.name = name;
+    local.depth = -1;
 }
 
 private void synchronize() {
@@ -220,8 +281,36 @@ private void synchronize() {
 private void statement() {
     if (match(TokenType.PRINT)) {
         printStatement();
+    } else if (match(TokenType.LEFT_BRACE)) {
+        beginScope();
+        block();
+        endScope();
     } else {
         expressionStatement();
+    }
+}
+
+private void block() {
+    while (!check(TokenType.RIGHT_BRACE) && !check(TokenType.EOF)) {
+        declaration();
+    }
+
+    consume(TokenType.RIGHT_BRACE, "Expect '}' after block.");
+}
+
+private void beginScope() {
+    current.scopeDepth++;
+}
+
+private void endScope() {
+    assert(current.scopeDepth != 0);
+    current.scopeDepth--;
+
+    while (current.localCount > 0 && 
+            current.locals[current.localCount - 1].depth >
+            current.scopeDepth) {
+        emitByte(OpCode.POP);
+        current.localCount--;
     }
 }
 
@@ -336,13 +425,35 @@ private void variable(bool canAssign) {
 }
 
 private void namedVariable(Token name, bool canAssign) {
-    ubyte arg = identifierConstant(&name);
+    OpCode getOp, setOp;
+    int arg = resolveLocal(current, &name);
+    if(arg != -1) {
+        getOp = OpCode.GET_LOCAL;
+        setOp = OpCode.SET_LOCAL;
+    } else {
+        getOp = OpCode.GET_GLOBAL;
+        setOp = OpCode.SET_GLOBAL;
+        arg = identifierConstant(&name);
+    }
     if (canAssign && match(TokenType.EQUAL)) {
         expression();
-        emitBytes(OpCode.SET_GLOBAL, arg);
+        emitBytes(setOp, cast(ubyte)arg);
     } else {
-        emitBytes(OpCode.GET_GLOBAL, arg);
+        emitBytes(getOp, cast(ubyte)arg);
     }
+}
+
+private int resolveLocal(Compiler* comp, Token *name)
+{
+    foreach_reverse(i; 0 .. comp.localCount) {
+        if(comp.locals[i].name.lexeme == name.lexeme) {
+            if(comp.locals[i].depth == -1) {
+                error("Can't read local variable in its own initializer.");
+            }
+            return i;
+        }
+    }
+    return -1;
 }
 
 private void errorAtCurrent(const(char)[] message) {
