@@ -233,7 +233,7 @@ private void number() {
 
 private void str() {
     // idup all strings, not sure when the source will go away.
-    Value value = Value(parser.previous.lexeme[1 .. $-1].idup);
+    Value value = Value(internString(parser.previous.lexeme[1 .. $-1].idup));
     emitConstant(value);
 }
 

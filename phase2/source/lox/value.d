@@ -91,7 +91,7 @@ Value addValues(Value v1, Value v2)
     }
 
     return match!(
-            (string s1, string s2) => Value(s1 ~ s2),
+            (string s1, string s2) => Value(internString(s1 ~ s2)),
             numadd,
             (a, b) => Value(ErrStr("Operands must be two numbers or two strings."))
     )(v1, v2);
@@ -115,4 +115,15 @@ string getError(Value v)
             (ErrStr e) => e.msg,
             x => null
     );
+}
+
+string internString(string s)
+{
+    import lox.vm;
+    if(auto interned = s in vm.strings)
+        // already interned.
+        return *interned;
+    // intern it
+    vm.strings[s] = s;
+    return s;
 }

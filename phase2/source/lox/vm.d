@@ -20,6 +20,8 @@ struct VM {
     ubyte[] ip;
     Value[STACK_MAX] stack;
     Value* stackTop;
+    string[string] strings;
+
     InterpretResult run() {
         ubyte READ_BYTE() {
             scope(success) ip = ip[1 .. $];
