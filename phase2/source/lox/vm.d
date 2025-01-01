@@ -28,6 +28,10 @@ struct VM {
             scope(success) ip = ip[1 .. $];
             return ip[0];
         }
+        ushort READ_SHORT() {
+            scope(success) ip = ip[2 .. $];
+            return ip[0] | (ip[1] << 8);
+        }
 
         Value READ_CONSTANT() => chunk.constants.values[READ_BYTE()];
 
@@ -109,9 +113,7 @@ struct VM {
                     break;
                 case NOT:
                     auto val = pop();
-                    auto result = val.not();
-                    // note, this never is an error. All values can be NOT-ed
-                    assert(result.getError() is null);
+                    auto result = Value(!val.asBool());
                     push(result);
                     break;
                 case NEGATE:
@@ -143,8 +145,7 @@ struct VM {
                     break;
                 case SET_LOCAL:
                     auto idx = READ_BYTE();
-                    auto val = pop();
-                    push(val);
+                    auto val = peek();
                     stackLocal(idx) = val;
                     break;
                 case GET_GLOBAL:
@@ -162,15 +163,34 @@ struct VM {
                     auto nameVal = READ_CONSTANT();
                     string name = nameVal.extractString();
                     if(auto v = name in globals) {
-                        auto val = pop();
+                        auto val = peek();
                         *v = val;
-                        // leave it there
-                        push(val);
                     } else {
                         import std.conv;
                         runtimeError(i"Undefined variable '$(name)'".text);
                         return InterpretResult.RUNTIME_ERROR;
                     }
+                    break;
+                case JUMP_IF_FALSE:
+                    auto offset = READ_SHORT();
+                    auto val = peek();
+                    if (!val.asBool) {
+                        ptrdiff_t idx = ip.ptr - chunk.code.ptr;
+                        idx += offset;
+                        ip = chunk.code[idx .. $];
+                    }
+                    break;
+                case JUMP:
+                    auto offset = READ_SHORT();
+                    ptrdiff_t idx = ip.ptr - chunk.code.ptr;
+                    idx += offset;
+                    ip = chunk.code[idx .. $];
+                    break;
+                case LOOP:
+                    auto offset = READ_SHORT();
+                    ptrdiff_t idx = ip.ptr - chunk.code.ptr;
+                    idx -= offset;
+                    ip = chunk.code[idx .. $];
                     break;
                 case RETURN:
                     // Exit interpreter.
@@ -196,6 +216,11 @@ struct VM {
     Value pop() {
         assert(stackTop > stack.ptr);
         return *(--stackTop);
+    }
+
+    Value peek(int offset = 0) {
+        assert(stackTop - offset - 1 >= stack.ptr);
+        return *(stackTop - offset - 1);
     }
 
     void runtimeError(string msg) {

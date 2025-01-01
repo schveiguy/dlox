@@ -24,6 +24,9 @@ enum OpCode : ubyte
     NOT,
     NEGATE,
     PRINT,
+    JUMP_IF_FALSE,
+    JUMP,
+    LOOP,
     RETURN,
 }
 

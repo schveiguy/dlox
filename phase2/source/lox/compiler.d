@@ -224,6 +224,27 @@ private void defineVariable(ubyte global) {
     emitBytes(OpCode.DEFINE_GLOBAL, global);
 }
 
+private void and_(bool) {
+    int endJump = emitJump(OpCode.JUMP_IF_FALSE);
+    emitByte(OpCode.POP);
+
+    parsePrecedence(Precedence.AND);
+
+    patchJump(endJump);
+}
+
+private void or_(bool) {
+    int elseJump = emitJump(OpCode.JUMP_IF_FALSE);
+    int endJump = emitJump(OpCode.JUMP);
+
+    patchJump(elseJump);
+    emitByte(OpCode.POP);
+
+    parsePrecedence(Precedence.OR);
+
+    patchJump(endJump);
+}
+
 private void markInitialized() {
     current.locals[current.localCount - 1].depth = current.scopeDepth;
 }
@@ -281,6 +302,12 @@ private void synchronize() {
 private void statement() {
     if (match(TokenType.PRINT)) {
         printStatement();
+    } else if (match(TokenType.IF)) {
+        ifStatement();
+    } else if (match(TokenType.WHILE)) {
+        whileStatement();
+    } else if (match(TokenType.FOR)) {
+        forStatement();
     } else if (match(TokenType.LEFT_BRACE)) {
         beginScope();
         block();
@@ -288,6 +315,114 @@ private void statement() {
     } else {
         expressionStatement();
     }
+}
+
+private void ifStatement() {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.");
+    expression();
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after condition.");
+    int thenJump = emitJump(OpCode.JUMP_IF_FALSE);
+    emitByte(OpCode.POP);
+    statement();
+
+    int elseJump = emitJump(OpCode.JUMP);
+
+    patchJump(thenJump);
+
+    emitByte(OpCode.POP);
+
+    if (match(TokenType.ELSE)) statement();
+
+    patchJump(elseJump);
+}
+
+private void whileStatement() {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.");
+    auto loopTarget = currentChunk.count;
+    expression();
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after condition.");
+    int thenJump = emitJump(OpCode.JUMP_IF_FALSE);
+    emitByte(OpCode.POP);
+    statement();
+
+    emitLoop(loopTarget);
+
+    patchJump(thenJump);
+
+    emitByte(OpCode.POP);
+}
+
+private void forStatement() {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'for'.");
+    // initializer
+    beginScope();
+    if(match(TokenType.VAR)) {
+        varDeclaration();
+    } else if(match(TokenType.SEMICOLON)) {
+        // no initializer.
+    } else {
+        expressionStatement();
+    }
+
+    // condition
+    auto loopStart = currentChunk().count;
+    int conditionJump = -1;
+    bool hasCondition = !match(TokenType.SEMICOLON);
+    if(hasCondition) {
+        expression();
+        consume(TokenType.SEMICOLON, "For condition must be followed by semicolon.");
+        conditionJump = emitJump(OpCode.JUMP_IF_FALSE);
+        emitByte(OpCode.POP);
+    }
+
+    // increment
+    if(!match(TokenType.RIGHT_PAREN)) {
+        int skipToBody = emitJump(OpCode.JUMP);
+        auto incrementStart = currentChunk().count;
+        expression();
+        emitByte(OpCode.POP);
+        consume(TokenType.RIGHT_PAREN, "For condition must be followed by semicolon.");
+        emitLoop(loopStart);
+        loopStart = incrementStart;
+        patchJump(skipToBody);
+    }
+
+    statement();
+
+    emitLoop(loopStart);
+
+    if(hasCondition) {
+        patchJump(conditionJump);
+        emitByte(OpCode.POP);
+    }
+    endScope();
+}
+
+private int emitJump(ubyte instruction) {
+    emitByte(instruction);
+    emitByte(0xff);
+    emitByte(0xff);
+    return currentChunk().count - 2;
+}
+
+private void emitLoop(int target) {
+    emitByte(OpCode.LOOP);
+    auto diff = currentChunk.count + 2 - target;
+    assert(diff > 0);
+    if( diff > ushort.max) {
+        error("Loop body too large.");
+    }
+    emitByte(diff & 0xff);
+    emitByte((diff >> 8) & 0xff);
+}
+
+private void patchJump(int loc) {
+    int amount = (currentChunk.count - (loc + 2));
+    if(amount > ushort.max) {
+        error("Too much code to jump over.");
+    }
+    currentChunk.code()[loc] = cast(ubyte)(amount & 0xff);
+    currentChunk.code()[loc+1] = cast(ubyte)((amount >> 8) & 0xff);
 }
 
 private void block() {
@@ -363,7 +498,7 @@ ParseRule[] rules = [
   TokenType.IDENTIFIER:    ParseRule(&variable, null,    Precedence.NONE),
   TokenType.STRING:        ParseRule(&str,      null,    Precedence.NONE),
   TokenType.NUMBER:        ParseRule(&number,   null,    Precedence.NONE),
-  TokenType.AND:           ParseRule(null,      null,    Precedence.NONE),
+  TokenType.AND:           ParseRule(null,      &and_,   Precedence.AND),
   TokenType.CLASS:         ParseRule(null,      null,    Precedence.NONE),
   TokenType.ELSE:          ParseRule(null,      null,    Precedence.NONE),
   TokenType.FALSE:         ParseRule(&literal,  null,    Precedence.NONE),
@@ -371,7 +506,7 @@ ParseRule[] rules = [
   TokenType.FUN:           ParseRule(null,      null,    Precedence.NONE),
   TokenType.IF:            ParseRule(null,      null,    Precedence.NONE),
   TokenType.NIL:           ParseRule(&literal,  null,    Precedence.NONE),
-  TokenType.OR:            ParseRule(null,      null,    Precedence.NONE),
+  TokenType.OR:            ParseRule(null,      &or_,    Precedence.OR),
   TokenType.PRINT:         ParseRule(null,      null,    Precedence.NONE),
   TokenType.RETURN:        ParseRule(null,      null,    Precedence.NONE),
   TokenType.SUPER:         ParseRule(null,      null,    Precedence.NONE),

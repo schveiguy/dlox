@@ -60,13 +60,13 @@ Value negate(Value v)
     );
 }
 
-Value not(Value v)
+bool asBool(Value v)
 {
     // nil and false are considered false, and every other value is considered true (even 0)
     return v.match!(
-            (bool b) => Value(!b),
-            (typeof(null) n) => Value(true),
-            (x) => Value(false)
+            (bool b) => b,
+            (typeof(null) n) => false,
+            (x) => true 
     );
 }
 

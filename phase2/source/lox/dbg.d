@@ -46,6 +46,12 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return byteInstruction("OP_GET_LOCAL", chunk, offset);
         case SET_LOCAL:
             return byteInstruction("OP_SET_LOCAL", chunk, offset);
+        case JUMP_IF_FALSE:
+            return jumpInstruction("OP_JUMP_IF_FALSE", chunk, 1, offset);
+        case JUMP:
+            return jumpInstruction("OP_JUMP", chunk, 1, offset);
+        case LOOP:
+            return jumpInstruction("OP_LOOP", chunk, -1, offset);
         case EQUAL:
             return simpleInstruction("OP_EQUAL", offset);
         case GREATER:
@@ -85,7 +91,7 @@ private int simpleInstruction(string name, int offset)
 private int constantInstruction(string name, ref const Chunk chunk, int offset) {
     auto o = outStream;
     ubyte constant = chunk.code[offset + 1];
-    o.write(i`$(name.formatted("%-16s")) $(offset.formatted("%4d")) '`, false);
+    o.write(i`$(name.formatted("%-16s")) '`, false);
     printValue(chunk.constants.values[constant]);
     o.writeln("'");
     return offset + 2;
@@ -94,6 +100,14 @@ private int constantInstruction(string name, ref const Chunk chunk, int offset) 
 private int byteInstruction(string name, ref const Chunk chunk, int offset) {
     auto o = outStream;
     ubyte slot = chunk.code[offset + 1];
-    o.writeln(i`$(name.formatted("%-16s")) $(slot.formatted("%4d"))`);
+    o.writeln(i`$(name.formatted("%-16s")) [$(slot.formatted("%4d"))]`);
     return offset + 2;
+}
+
+private int jumpInstruction(string name, ref const Chunk chunk, int multiplier, int offset) {
+    auto o = outStream;
+    int jumpOffset = chunk.code[offset + 1] | (chunk.code[offset + 2] << 8);
+    jumpOffset *= multiplier;
+    o.writeln(i`$(name.formatted("%-16s")) -> $(offset + 3 + jumpOffset)`);
+    return offset + 3;
 }
