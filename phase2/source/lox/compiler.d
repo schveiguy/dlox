@@ -5,8 +5,6 @@ import lox.io;
 import lox.chunk;
 import lox.value;
 
-debug = PRINT_CODE;
-
 struct Parser {
     Token current;
     Token previous;

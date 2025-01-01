@@ -13,8 +13,6 @@ enum InterpretResult {
 
 enum STACK_MAX = 256;
 
-debug = TRACE_EXECUTION;
-
 struct VM {
     Chunk *chunk;
     ubyte[] ip;

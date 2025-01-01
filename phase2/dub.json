@@ -10,5 +10,12 @@
 	"description": "D implemenation of Lox - bytecode mode",
 	"license": "BSL-1.0",
 	"name": "dlox2",
-	"targetType": "executable"
+	"targetType": "executable",
+
+    "configurations": {
+        "normal" : {},
+        "dbg": {
+            "debugVersions" : ["PRINT_CODE", "TRACE_EXECUTION"]
+        }
+    }
 }
