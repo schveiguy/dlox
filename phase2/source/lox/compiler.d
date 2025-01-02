@@ -4,6 +4,7 @@ import lox.scanner;
 import lox.io;
 import lox.chunk;
 import lox.value;
+import lox.obj;
 
 struct Parser {
     Token current;
@@ -12,7 +13,16 @@ struct Parser {
     bool panicMode;
 }
 
+enum FunctionType {
+    FUNCTION,
+    SCRIPT
+}
+
 struct Compiler {
+    Compiler *enclosing;
+    ObjFunction *fun;
+    FunctionType type = FunctionType.SCRIPT;
+
     Local[ubyte.max + 1] locals;
     int localCount;
     int scopeDepth;
@@ -47,24 +57,34 @@ struct ParseRule {
 
 Parser parser;
 Compiler* current;
-Chunk* compilingChunk;
 
-private void initCompiler(Compiler * compiler) {
+private void initCompiler(Compiler * compiler, FunctionType type) {
+    compiler.enclosing = current;
+    compiler.fun = new ObjFunction;
+    compiler.type = type;
     compiler.localCount = 0;
     compiler.scopeDepth = 0;
     current = compiler;
+
+    if(type != FunctionType.SCRIPT) {
+        current.fun.name = internString(parser.previous.lexeme.idup);
+    }
+
+    Local* local = &current.locals[current.localCount++];
+    local.depth = 0;
+    // the name lexeme is null, and none of the other fields of the name are important.
+    local.name = Token.init;
 }
 
 private Chunk* currentChunk() {
-    return compilingChunk;
+    return &current.fun.chunk;
 }
 
-bool compile(const(char)[] source, Chunk* chunk)
+ObjFunction* compile(const(char)[] source)
 {
     initScanner(source);
     Compiler compiler;
-    initCompiler(&compiler);
-    compilingChunk = chunk;
+    initCompiler(&compiler, FunctionType.SCRIPT);
 
     parser.hadError = false;
     parser.panicMode = false;
@@ -72,8 +92,8 @@ bool compile(const(char)[] source, Chunk* chunk)
     while (!match(TokenType.EOF)) {
         declaration();
     }
-    endCompiler();
-    return !parser.hadError;
+    auto fun = endCompiler();
+    return parser.hadError ? null : fun;
 }
 
 private void advance() {
@@ -105,6 +125,7 @@ private void emitBytes(ubyte b1, ubyte b2) {
 }
 
 private void emitReturn() {
+    emitByte(OpCode.NIL);
     emitByte(OpCode.RETURN);
 }
 
@@ -121,13 +142,17 @@ private void emitConstant(Value value) {
     emitBytes(OpCode.CONSTANT, makeConstant(value));
 }
 
-private void endCompiler() {
+private ObjFunction* endCompiler() {
     emitReturn();
+
+    auto fun = current.fun;
     debug(PRINT_CODE) {
         import lox.dbg;
         if(!parser.hadError)
-            disassembleChunk(*currentChunk(), "code");
+            disassembleChunk(*currentChunk(), fun.name.length > 0 ? fun.name : "<script>");
     }
+    current = current.enclosing;
+    return fun;
 }
 
 private void binary(bool) {
@@ -150,8 +175,29 @@ private void binary(bool) {
     }
 }
 
+private void call(bool) {
+    ubyte argCount = argumentList();
+    emitBytes(OpCode.CALL, argCount);
+}
+
+private ubyte argumentList() {
+    ubyte argCount = 0;
+    if (!check(TokenType.RIGHT_PAREN)) {
+        do {
+            expression();
+            if(argCount == ubyte.max) {
+                error("Can't have more than 255 arguments.");
+            }
+            ++argCount;
+        } while(match(TokenType.COMMA));
+    }
+
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.");
+    return argCount;
+}
+
 private void literal(bool) {
-    with(TokenType) /*with(Opcode)*/ switch(parser.previous.type) {
+    with(TokenType) /*with(OpCode)*/ switch(parser.previous.type) {
         case FALSE: emitByte(OpCode.FALSE); break;
         case NIL: emitByte(OpCode.NIL); break;
         case TRUE: emitByte(OpCode.TRUE); break;
@@ -176,7 +222,9 @@ private void expressionStatement() {
 }
 
 private void declaration() {
-    if(match(TokenType.VAR)) {
+    if(match(TokenType.FUN)) {
+        funDeclaration();
+    } else if(match(TokenType.VAR)) {
         varDeclaration();
     } else {
         statement();
@@ -185,10 +233,41 @@ private void declaration() {
     if (parser.panicMode) synchronize();
 }
 
+private void funDeclaration() {
+    ubyte global = parseVariable("Expect function name.");
+    markInitialized();
+    func(FunctionType.FUNCTION);
+    defineVariable(global);
+}
+
+private void func(FunctionType type) {
+    Compiler compiler;
+    initCompiler(&compiler, type);
+    beginScope();
+    consume(TokenType.LEFT_PAREN, "Expect '(' after function name.");
+    if (!check(TokenType.RIGHT_PAREN)) {
+        do {
+            current.fun.arity++;
+            if(current.fun.arity > 255) {
+                errorAtCurrent("Can't have more than 255 parameters.");
+            }
+            ubyte constant = parseVariable("Expect parameter name.");
+            defineVariable(constant);
+        } while(match(TokenType.COMMA));
+    }
+    consume(TokenType.RIGHT_PAREN, "Expect '(' after function name.");
+    consume(TokenType.LEFT_BRACE, "Expect '{' before function body.");
+    block();
+    auto fun = endCompiler();
+    emitBytes(OpCode.CONSTANT, makeConstant(Value(fun)));
+}
+
 private void varDeclaration() {
     ubyte global = parseVariable("Expect variable name.");
 
     if (match(TokenType.EQUAL)) {
+        import lox.io;
+        outStream.writeln("getting expression for variable init.");
         expression();
     } else {
         emitByte(OpCode.NIL);
@@ -244,6 +323,7 @@ private void or_(bool) {
 }
 
 private void markInitialized() {
+    if (current.scopeDepth == 0) return;
     current.locals[current.localCount - 1].depth = current.scopeDepth;
 }
 
@@ -300,6 +380,8 @@ private void synchronize() {
 private void statement() {
     if (match(TokenType.PRINT)) {
         printStatement();
+    } else if (match(TokenType.RETURN)) {
+        returnStatement();
     } else if (match(TokenType.IF)) {
         ifStatement();
     } else if (match(TokenType.WHILE)) {
@@ -313,6 +395,19 @@ private void statement() {
     } else {
         expressionStatement();
     }
+}
+
+private void returnStatement() {
+    if(current.type == FunctionType.SCRIPT) {
+        error("Can't return from top-level code.");
+    }
+    if(match(TokenType.SEMICOLON)) {
+        emitReturn();
+        return;
+    }
+    expression();
+    consume(TokenType.SEMICOLON, "Expect ';' after return value.");
+    emitByte(OpCode.RETURN);
 }
 
 private void ifStatement() {
@@ -474,7 +569,7 @@ private void unary(bool) {
 }
 
 ParseRule[] rules = [
-  TokenType.LEFT_PAREN:    ParseRule(&grouping, null,    Precedence.NONE),
+  TokenType.LEFT_PAREN:    ParseRule(&grouping, &call,   Precedence.CALL),
   TokenType.RIGHT_PAREN:   ParseRule(null,      null,    Precedence.NONE),
   TokenType.LEFT_BRACE:    ParseRule(null,      null,    Precedence.NONE), 
   TokenType.RIGHT_BRACE:   ParseRule(null,      null,    Precedence.NONE),

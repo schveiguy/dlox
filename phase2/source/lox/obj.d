@@ -1,9 +1,9 @@
 module lox.obj;
 
-enum ObjType {
-    STRING
-}
+import lox.chunk;
 
-struct Obj {
-    ObjType type;
+struct ObjFunction {
+    int arity;
+    Chunk chunk;
+    string name;
 }

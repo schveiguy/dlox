@@ -26,7 +26,7 @@ struct ErrStr {
     string msg;
 }
 
-alias Value = SumType!(typeof(null), double, bool, string, Obj*, ErrStr);
+alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -49,7 +49,19 @@ struct ValueArray {
 
 void printValue(Value value) {
     import lox.io;
-    outStream.write(i"$(value)");
+
+    static void printFunction(ObjFunction* f) {
+        if(f.name.length > 0)
+            outStream.write(i"<fn $(f.name)>", false);
+        else
+            outStream.write(i"<script>", false);
+    }
+
+    value.match!(
+            (typeof(null) n) { outStream.write("nil"); },
+            (ObjFunction* f) { printFunction(f); },
+            (x) { outStream.write(i"$(x)", false); }
+    );
 }
 
 Value negate(Value v)
@@ -123,6 +135,14 @@ string extractString(Value v)
     return v.match!(
             (string s) => s,
             x => assert(0, "Somehow tried to extract a string from a non string value.")
+    );
+}
+
+ObjFunction* extractFunction(Value v)
+{
+    return v.match!(
+            (ObjFunction* f) => f,
+            (x) => null
     );
 }
 

@@ -74,6 +74,8 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_PRINT", offset);
         case POP:
             return simpleInstruction("OP_POP", offset);
+        case CALL:
+            return byteInstruction("OP_CALL", chunk, offset);
         case RETURN:
             return simpleInstruction("OP_RETURN", offset);
         default:

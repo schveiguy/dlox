@@ -4,6 +4,7 @@ import lox.chunk;
 import lox.io;
 import lox.value;
 import lox.compiler;
+import lox.obj;
 
 enum InterpretResult {
     OK,
@@ -11,27 +12,42 @@ enum InterpretResult {
     RUNTIME_ERROR,
 }
 
-enum STACK_MAX = 256;
+enum FRAMES_MAX = 64;
+enum STACK_MAX = FRAMES_MAX * 256;
+
+struct CallFrame {
+    ObjFunction* fun;
+    ubyte[] ip;
+    Value* slots;
+}
 
 struct VM {
-    Chunk *chunk;
-    ubyte[] ip;
+    CallFrame[FRAMES_MAX] frames;
+    int frameCount;
+
     Value[STACK_MAX] stack;
     Value* stackTop;
     string[string] strings;
     Value[string] globals;
 
     InterpretResult run() {
-        ubyte READ_BYTE() {
-            scope(success) ip = ip[1 .. $];
-            return ip[0];
-        }
-        ushort READ_SHORT() {
-            scope(success) ip = ip[2 .. $];
-            return ip[0] | (ip[1] << 8);
+        auto frame = &frames[vm.frameCount - 1];
+
+        ref Value stackLocal(ubyte idx) {
+            assert(frame.slots + idx < stackTop);
+            return frame.slots[idx];
         }
 
-        Value READ_CONSTANT() => chunk.constants.values[READ_BYTE()];
+        ubyte READ_BYTE() {
+            scope(success) frame.ip = frame.ip[1 .. $];
+            return frame.ip[0];
+        }
+        ushort READ_SHORT() {
+            scope(success) frame.ip = frame.ip[2 .. $];
+            return frame.ip[0] | (frame.ip[1] << 8);
+        }
+
+        Value READ_CONSTANT() => frame.fun.chunk.constants.values[READ_BYTE()];
 
         bool BINARY_OP(string op)() {
             auto b = pop();
@@ -47,6 +63,8 @@ struct VM {
             return true;
         }
 
+        ptrdiff_t ipIdx() => frame.ip.ptr - frame.fun.chunk.code.ptr;
+
         for (;;) {
             debug(TRACE_EXECUTION) {
                 import lox.dbg;
@@ -59,7 +77,7 @@ struct VM {
                     o.write(" ]", false);
                 }
                 o.writeln();
-                disassembleInstruction(*chunk, cast(int)(chunk.code.length - ip.length));
+                disassembleInstruction(frame.fun.chunk, cast(int)(frame.fun.chunk.code.length - frame.ip.length));
             }
             ubyte instruction;
             with(OpCode) final switch(instruction = READ_BYTE()) {
@@ -173,42 +191,55 @@ struct VM {
                     auto offset = READ_SHORT();
                     auto val = peek();
                     if (!val.asBool) {
-                        ptrdiff_t idx = ip.ptr - chunk.code.ptr;
+                        auto idx = ipIdx();
                         idx += offset;
-                        ip = chunk.code[idx .. $];
+                        frame.ip = frame.fun.chunk.code[idx .. $];
                     }
                     break;
                 case JUMP:
                     auto offset = READ_SHORT();
-                    ptrdiff_t idx = ip.ptr - chunk.code.ptr;
+                    auto idx = ipIdx();
                     idx += offset;
-                    ip = chunk.code[idx .. $];
+                    frame.ip = frame.fun.chunk.code[idx .. $];
                     break;
                 case LOOP:
                     auto offset = READ_SHORT();
-                    ptrdiff_t idx = ip.ptr - chunk.code.ptr;
+                    auto idx = ipIdx();
                     idx -= offset;
-                    ip = chunk.code[idx .. $];
+                    frame.ip = frame.fun.chunk.code[idx .. $];
+                    break;
+                case CALL:
+                    auto argCount = READ_BYTE();
+                    auto func = peek(argCount);
+                    if(!callValue(func, argCount))
+                        return InterpretResult.RUNTIME_ERROR;
+                    frame = &frames[frameCount - 1];
                     break;
                 case RETURN:
-                    // Exit interpreter.
-                    return InterpretResult.OK;
+                    auto result = pop();
+                    --frameCount;
+                    if(frameCount == 0) {
+                        pop();
+                        // Exit interpreter.
+                        return InterpretResult.OK;
+                    }
+
+                    stackTop = frame.slots;
+                    push(result);
+                    frame = &frames[frameCount - 1];
+                    break;
             }
         }
     }
 
     void resetStack() {
         stackTop = stack.ptr;
+        frameCount = 0;
     }
 
     void push(Value value) {
         assert(stackTop < stack.ptr + stack.length);
         *stackTop++ = value;
-    }
-
-    ref Value stackLocal(ubyte idx) {
-        assert(stack.ptr + idx < stackTop);
-        return stack[idx];
     }
 
     Value pop() {
@@ -222,10 +253,47 @@ struct VM {
     }
 
     void runtimeError(string msg) {
-        errStream.writeln(msg, false);
-        size_t instruction = ip.ptr - chunk.code.ptr - 1;
-        int line = chunk.lines[instruction];
-        errStream.writeln(i`[line $(line)] in script`);
+        errStream.writeln(msg, true);
+
+        foreach_reverse(ref frame; frames[0 .. frameCount]) {
+            auto fun = frame.fun;
+            size_t instruction = frame.fun.chunk.code.length - frame.ip.length - 1;
+            errStream.write(i"[line $(fun.chunk.lines[instruction])] in ", false);
+            if(fun.name == null) {
+                errStream.writeln("script");
+            } else {
+                errStream.writeln(i"$(fun.name)()");
+            }
+        }
+
+        resetStack();
+    }
+    private bool callValue(Value func, int argCount) {
+        auto fun = func.extractFunction();
+        if(!fun) {
+            runtimeError("Can only call functions and classes.");
+            return false;
+        }
+        return call(fun, argCount);
+    }
+
+    private bool call(ObjFunction* fun, int argCount)
+    {
+        if(fun.arity != argCount) {
+            import std.conv;
+            runtimeError(i"Expected $(fun.arity) arguments but got $(argCount).".text);
+            return false;
+        }
+        if(frameCount == frames.length)
+        {
+            runtimeError("Stack Overflow.");
+            return false;
+        }
+        auto frame = &frames[vm.frameCount++];
+        frame.fun = fun;
+        frame.ip = fun.chunk.code;
+        frame.slots = stackTop - argCount - 1;
+        return true;
     }
 }
 
@@ -247,14 +315,14 @@ Value pop() {
 }
 
 InterpretResult interpret(const(char)[] source) {
-    Chunk chunk;
+    auto fun = compile(source);
 
-    if(!compile(source, &chunk))
+    if(!fun)
         return InterpretResult.COMPILE_ERROR;
 
-    vm.chunk = &chunk;
-    vm.ip = vm.chunk.code;
+    push(Value(fun));
 
-    InterpretResult result = vm.run();
-    return result;
+    vm.call(fun, 0);
+
+    return vm.run();
 }
