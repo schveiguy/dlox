@@ -211,9 +211,24 @@ struct VM {
                 case CALL:
                     auto argCount = READ_BYTE();
                     auto func = peek(argCount);
-                    if(!callValue(func, argCount))
-                        return InterpretResult.RUNTIME_ERROR;
-                    frame = &frames[frameCount - 1];
+                    with(CallableType) final switch(func.callableType) {
+                        case NotCallable:
+                            runtimeError("Can only call functions and classes.");
+                            return InterpretResult.RUNTIME_ERROR;
+                        case Function:
+                            if(!callValue(func, argCount))
+                                return InterpretResult.RUNTIME_ERROR;
+                            frame = &frames[frameCount - 1];
+                            break;
+                        case Native:
+                            auto result = callNative(func, argCount);
+                            if(auto msg = result.getError()) {
+                                runtimeError(msg);
+                                return InterpretResult.RUNTIME_ERROR;
+                            }
+                            push(result);
+                            break;
+                    }
                     break;
                 case RETURN:
                     auto result = pop();
@@ -270,10 +285,7 @@ struct VM {
     }
     private bool callValue(Value func, int argCount) {
         auto fun = func.extractFunction();
-        if(!fun) {
-            runtimeError("Can only call functions and classes.");
-            return false;
-        }
+        assert(fun);
         return call(fun, argCount);
     }
 
@@ -295,12 +307,37 @@ struct VM {
         frame.slots = stackTop - argCount - 1;
         return true;
     }
+
+    private Value callNative(Value fun, int argCount)
+    {
+        auto native = fun.extractNative();
+        assert(native);
+        // call with the given arguments
+        auto argStart = stackTop - argCount;
+        auto result = native.fun(argStart[0 .. argCount]);
+        stackTop -= argCount + 1;
+        return result;
+    }
+
+    private void defineNative(string name, ObjNative* value)
+    {
+        internString(name); // always called with a literal.
+        globals[name] = Value(value);
+    }
 }
 
 VM vm;
 
+private double nativeClock() {
+    import core.sys.posix.stdc.time : clock, CLOCKS_PER_SEC;
+    return double(clock()) / CLOCKS_PER_SEC;
+}
+
 void initVM() {
+    import core.stdc.math : sin;
     vm.resetStack();
+    vm.defineNative("clock", getNativeFn!nativeClock);
+    vm.defineNative("sin", getNativeFn!sin);
 }
 
 void freeVM() {

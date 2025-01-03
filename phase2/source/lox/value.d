@@ -26,7 +26,7 @@ struct ErrStr {
     string msg;
 }
 
-alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ErrStr);
+alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ObjNative*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -57,9 +57,14 @@ void printValue(Value value) {
             outStream.write(i"<script>", false);
     }
 
+    static void printNative(ObjNative* f) {
+        outStream.write(i"<native $(f.name)>");
+    }
+
     value.match!(
             (typeof(null) n) { outStream.write("nil"); },
             (ObjFunction* f) { printFunction(f); },
+            (ObjNative* n) {printNative(n); },
             (x) { outStream.write(i"$(x)", false); }
     );
 }
@@ -138,10 +143,34 @@ string extractString(Value v)
     );
 }
 
+enum CallableType {
+    NotCallable,
+    Function,
+    Native
+}
+
+CallableType callableType(Value v) {
+    with(CallableType) return v.match!(
+            (typeof(null)) => NotCallable,
+            (ObjFunction *f) => Function,
+            (ObjNative *f) => Native,
+            (x) => NotCallable
+    );
+}
+
+
 ObjFunction* extractFunction(Value v)
 {
     return v.match!(
             (ObjFunction* f) => f,
+            (x) => null
+    );
+}
+
+ObjNative* extractNative(Value v)
+{
+    return v.match!(
+            (ObjNative* f) => f,
             (x) => null
     );
 }
