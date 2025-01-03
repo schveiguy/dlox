@@ -266,8 +266,6 @@ private void varDeclaration() {
     ubyte global = parseVariable("Expect variable name.");
 
     if (match(TokenType.EQUAL)) {
-        import lox.io;
-        outStream.writeln("getting expression for variable init.");
         expression();
     } else {
         emitByte(OpCode.NIL);
