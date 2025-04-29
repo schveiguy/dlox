@@ -26,7 +26,7 @@ struct ErrStr {
     string msg;
 }
 
-alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ObjNative*, ErrStr);
+alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ObjNative*, ObjClosure*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -64,7 +64,8 @@ void printValue(Value value) {
     value.match!(
             (typeof(null) n) { outStream.write("nil"); },
             (ObjFunction* f) { printFunction(f); },
-            (ObjNative* n) {printNative(n); },
+            (ObjNative* n)   { printNative(n); },
+            (ObjClosure* c)  { printFunction(c.fun); },
             (x) { outStream.write(i"$(x)", false); }
     );
 }
@@ -145,15 +146,15 @@ string extractString(Value v)
 
 enum CallableType {
     NotCallable,
-    Function,
-    Native
+    Closure,
+    Native,
 }
 
 CallableType callableType(Value v) {
     with(CallableType) return v.match!(
             (typeof(null)) => NotCallable,
-            (ObjFunction *f) => Function,
             (ObjNative *f) => Native,
+            (ObjClosure *f) => Closure,
             (x) => NotCallable
     );
 }
@@ -171,6 +172,14 @@ ObjNative* extractNative(Value v)
 {
     return v.match!(
             (ObjNative* f) => f,
+            (x) => null
+    );
+}
+
+ObjClosure* extractClosure(Value v)
+{
+    return v.match!(
+            (ObjClosure* f) => f,
             (x) => null
     );
 }

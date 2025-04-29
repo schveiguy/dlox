@@ -16,7 +16,7 @@ enum FRAMES_MAX = 64;
 enum STACK_MAX = FRAMES_MAX * 256;
 
 struct CallFrame {
-    ObjFunction* fun;
+    ObjClosure* closure;
     ubyte[] ip;
     Value* slots;
 }
@@ -47,7 +47,7 @@ struct VM {
             return frame.ip[0] | (frame.ip[1] << 8);
         }
 
-        Value READ_CONSTANT() => frame.fun.chunk.constants.values[READ_BYTE()];
+        Value READ_CONSTANT() => frame.closure.fun.chunk.constants.values[READ_BYTE()];
 
         bool BINARY_OP(string op)() {
             auto b = pop();
@@ -63,7 +63,7 @@ struct VM {
             return true;
         }
 
-        ptrdiff_t ipIdx() => frame.ip.ptr - frame.fun.chunk.code.ptr;
+        ptrdiff_t ipIdx() => frame.ip.ptr - frame.closure.fun.chunk.code.ptr;
 
         for (;;) {
             debug(TRACE_EXECUTION) {
@@ -77,7 +77,7 @@ struct VM {
                     o.write(" ]", false);
                 }
                 o.writeln();
-                disassembleInstruction(frame.fun.chunk, cast(int)(frame.fun.chunk.code.length - frame.ip.length));
+                disassembleInstruction(frame.closure.fun.chunk, cast(int)(frame.closure.fun.chunk.code.length - frame.ip.length));
             }
             ubyte instruction;
             with(OpCode) final switch(instruction = READ_BYTE()) {
@@ -193,20 +193,20 @@ struct VM {
                     if (!val.asBool) {
                         auto idx = ipIdx();
                         idx += offset;
-                        frame.ip = frame.fun.chunk.code[idx .. $];
+                        frame.ip = frame.closure.fun.chunk.code[idx .. $];
                     }
                     break;
                 case JUMP:
                     auto offset = READ_SHORT();
                     auto idx = ipIdx();
                     idx += offset;
-                    frame.ip = frame.fun.chunk.code[idx .. $];
+                    frame.ip = frame.closure.fun.chunk.code[idx .. $];
                     break;
                 case LOOP:
                     auto offset = READ_SHORT();
                     auto idx = ipIdx();
                     idx -= offset;
-                    frame.ip = frame.fun.chunk.code[idx .. $];
+                    frame.ip = frame.closure.fun.chunk.code[idx .. $];
                     break;
                 case CALL:
                     auto argCount = READ_BYTE();
@@ -215,7 +215,7 @@ struct VM {
                         case NotCallable:
                             runtimeError("Can only call functions and classes.");
                             return InterpretResult.RUNTIME_ERROR;
-                        case Function:
+                        case Closure:
                             if(!callValue(func, argCount))
                                 return InterpretResult.RUNTIME_ERROR;
                             frame = &frames[frameCount - 1];
@@ -228,7 +228,13 @@ struct VM {
                             }
                             push(result);
                             break;
+
                     }
+                    break;
+                case CLOSURE:
+                    ObjFunction* fun = READ_CONSTANT().extractFunction();
+                    auto closure = new ObjClosure(fun);
+                    push(Value(closure));
                     break;
                 case RETURN:
                     auto result = pop();
@@ -271,8 +277,8 @@ struct VM {
         errStream.writeln(msg, true);
 
         foreach_reverse(ref frame; frames[0 .. frameCount]) {
-            auto fun = frame.fun;
-            size_t instruction = frame.fun.chunk.code.length - frame.ip.length - 1;
+            auto fun = frame.closure.fun;
+            size_t instruction = fun.chunk.code.length - frame.ip.length - 1;
             errStream.write(i"[line $(fun.chunk.lines[instruction])] in ", false);
             if(fun.name == null) {
                 errStream.writeln("script");
@@ -284,16 +290,16 @@ struct VM {
         resetStack();
     }
     private bool callValue(Value func, int argCount) {
-        auto fun = func.extractFunction();
+        auto fun = func.extractClosure();
         assert(fun);
         return call(fun, argCount);
     }
 
-    private bool call(ObjFunction* fun, int argCount)
+    private bool call(ObjClosure* closure, int argCount)
     {
-        if(fun.arity != argCount) {
+        if(closure.fun.arity != argCount) {
             import std.conv;
-            runtimeError(i"Expected $(fun.arity) arguments but got $(argCount).".text);
+            runtimeError(i"Expected $(closure.fun.arity) arguments but got $(argCount).".text);
             return false;
         }
         if(frameCount == frames.length)
@@ -302,8 +308,8 @@ struct VM {
             return false;
         }
         auto frame = &frames[vm.frameCount++];
-        frame.fun = fun;
-        frame.ip = fun.chunk.code;
+        frame.closure = closure;
+        frame.ip = closure.fun.chunk.code;
         frame.slots = stackTop - argCount - 1;
         return true;
     }
@@ -357,9 +363,10 @@ InterpretResult interpret(const(char)[] source) {
     if(!fun)
         return InterpretResult.COMPILE_ERROR;
 
-    push(Value(fun));
+    auto closure = new ObjClosure(fun);
+    push(Value(closure));
 
-    vm.call(fun, 0);
+    vm.call(closure, 0);
 
     return vm.run();
 }

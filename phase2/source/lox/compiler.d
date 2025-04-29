@@ -259,7 +259,7 @@ private void func(FunctionType type) {
     consume(TokenType.LEFT_BRACE, "Expect '{' before function body.");
     block();
     auto fun = endCompiler();
-    emitBytes(OpCode.CONSTANT, makeConstant(Value(fun)));
+    emitBytes(OpCode.CLOSURE, makeConstant(Value(fun)));
 }
 
 private void varDeclaration() {

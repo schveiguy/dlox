@@ -28,6 +28,7 @@ enum OpCode : ubyte
     JUMP,
     LOOP,
     CALL,
+    CLOSURE,
     RETURN,
 }
 

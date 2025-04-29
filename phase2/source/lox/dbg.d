@@ -76,6 +76,13 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_POP", offset);
         case CALL:
             return byteInstruction("OP_CALL", chunk, offset);
+        case CLOSURE:
+            ++offset;
+            ubyte constant = chunk.code[offset++];
+            o.write(i`$("OP_CLOSURE".formatted("%-16s")) $(constant.formatted("%4d"))`);
+            printValue(chunk.constants.values[constant]);
+            o.writeln();
+            return offset;
         case RETURN:
             return simpleInstruction("OP_RETURN", offset);
         default:

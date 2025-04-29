@@ -9,6 +9,11 @@ struct ObjFunction {
     string name;
 }
 
+struct ObjClosure {
+    ObjFunction* fun;
+    Value* obj;
+}
+
 alias NativeFn = Value function(Value[] args);
 
 struct ObjNative {
