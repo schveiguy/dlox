@@ -28,6 +28,7 @@ struct VM {
     Value[STACK_MAX] stack;
     Value* stackTop;
     string[string] strings;
+    ObjUpvalue openUpvalues; // just the next pointer is used here.
     Value[string] globals;
 
     InterpretResult run() {
@@ -164,6 +165,15 @@ struct VM {
                     auto val = peek();
                     stackLocal(idx) = val;
                     break;
+                case GET_UPVALUE:
+                    auto slot = READ_BYTE();
+                    push(*frame.closure.upvalues[slot].location);
+                    break;
+                case SET_UPVALUE:
+                    auto slot = READ_BYTE();
+                    auto val = peek();
+                    *frame.closure.upvalues[slot].location = val;
+                    break;
                 case GET_GLOBAL:
                     auto nameVal = READ_CONSTANT();
                     string name = nameVal.extractString();
@@ -235,9 +245,23 @@ struct VM {
                     ObjFunction* fun = READ_CONSTANT().extractFunction();
                     auto closure = new ObjClosure(fun);
                     push(Value(closure));
+                    foreach(ref uv; closure.upvalues)
+                    {
+                        ubyte isLocal = READ_BYTE();
+                        ubyte index = READ_BYTE();
+                        if(isLocal)
+                            uv = captureUpvalue(frame.slots + index);
+                        else
+                            uv = frame.closure.upvalues[index];
+                    }
+                    break;
+                case CLOSE_UPVALUE:
+                    closeUpvalues(vm.stackTop - 1);
+                    pop();
                     break;
                 case RETURN:
                     auto result = pop();
+                    closeUpvalues(frame.slots);
                     --frameCount;
                     if(frameCount == 0) {
                         pop();
@@ -293,6 +317,35 @@ struct VM {
         auto fun = func.extractClosure();
         assert(fun);
         return call(fun, argCount);
+    }
+
+    private ObjUpvalue* captureUpvalue(Value* local) {
+        ObjUpvalue* prev = &openUpvalues;
+        auto upvalue = prev.next;
+        while(upvalue !is null && upvalue.location > local) {
+            prev = upvalue;
+            upvalue = upvalue.next;
+        }
+
+        if(upvalue !is null && upvalue.location is local)
+            return upvalue;
+
+        upvalue = new ObjUpvalue(local);
+        upvalue.next = prev.next;
+        prev.next = upvalue;
+
+        return upvalue;
+    }
+
+    private void closeUpvalues(Value* last)
+    {
+        auto cur = openUpvalues.next;
+        while(cur !is null && cur.location >= last) {
+            cur.closed = *cur.location;
+            cur.location = &cur.closed;
+            cur = cur.next;
+        }
+        openUpvalues.next = cur;
     }
 
     private bool call(ObjClosure* closure, int argCount)

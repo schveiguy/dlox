@@ -26,7 +26,7 @@ struct ErrStr {
     string msg;
 }
 
-alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ObjNative*, ObjClosure*, ErrStr);
+alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -66,6 +66,7 @@ void printValue(Value value) {
             (ObjFunction* f) { printFunction(f); },
             (ObjNative* n)   { printNative(n); },
             (ObjClosure* c)  { printFunction(c.fun); },
+            (ObjUpvalue* u)  { outStream.write("upvalue"); },
             (x) { outStream.write(i"$(x)", false); }
     );
 }

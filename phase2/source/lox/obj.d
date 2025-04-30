@@ -5,13 +5,24 @@ import lox.value;
 
 struct ObjFunction {
     int arity;
+    int upvalueCount;
     Chunk chunk;
     string name;
 }
 
 struct ObjClosure {
     ObjFunction* fun;
-    Value* obj;
+    ObjUpvalue*[] upvalues;
+    this(ObjFunction* fun) {
+        this.fun = fun;
+        upvalues.length = fun.upvalueCount;
+    }
+}
+
+struct ObjUpvalue {
+    Value* location;
+    ObjUpvalue* next;
+    Value closed;
 }
 
 alias NativeFn = Value function(Value[] args);

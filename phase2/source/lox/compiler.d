@@ -18,6 +18,11 @@ enum FunctionType {
     SCRIPT
 }
 
+struct Upvalue {
+    ubyte index;
+    bool isLocal;
+}
+
 struct Compiler {
     Compiler *enclosing;
     ObjFunction *fun;
@@ -25,12 +30,14 @@ struct Compiler {
 
     Local[ubyte.max + 1] locals;
     int localCount;
+    Upvalue[ubyte.max + 1] upvalues;
     int scopeDepth;
 }
 
 struct Local {
     Token name;
     int depth;
+    bool isCaptured;
 }
 
 enum Precedence {
@@ -260,6 +267,11 @@ private void func(FunctionType type) {
     block();
     auto fun = endCompiler();
     emitBytes(OpCode.CLOSURE, makeConstant(Value(fun)));
+
+    foreach(uv; compiler.upvalues[0 .. fun.upvalueCount]) {
+        emitByte(uv.isLocal ? 1 : 0);
+        emitByte(uv.index);
+    }
 }
 
 private void varDeclaration() {
@@ -535,7 +547,10 @@ private void endScope() {
     while (current.localCount > 0 && 
             current.locals[current.localCount - 1].depth >
             current.scopeDepth) {
-        emitByte(OpCode.POP);
+        if(current.locals[current.localCount - 1].isCaptured)
+            emitByte(OpCode.CLOSE_UPVALUE);
+        else
+            emitByte(OpCode.POP);
         current.localCount--;
     }
 }
@@ -656,6 +671,9 @@ private void namedVariable(Token name, bool canAssign) {
     if(arg != -1) {
         getOp = OpCode.GET_LOCAL;
         setOp = OpCode.SET_LOCAL;
+    } else if ((arg = resolveUpvalue(current, &name)) != -1) {
+        getOp = OpCode.GET_UPVALUE;
+        setOp = OpCode.SET_UPVALUE;
     } else {
         getOp = OpCode.GET_GLOBAL;
         setOp = OpCode.SET_GLOBAL;
@@ -680,6 +698,50 @@ private int resolveLocal(Compiler* comp, Token *name)
         }
     }
     return -1;
+}
+
+private int resolveUpvalue(Compiler* compiler, Token* name)
+{
+    if(compiler.enclosing == null) return -1;
+
+    int local = resolveLocal(compiler.enclosing, name);
+    if(local != -1) {
+        import std.stdio;
+        compiler.enclosing.locals[local].isCaptured = true;
+        return addUpvalue(compiler, cast(ubyte)local, true);
+    }
+
+    int upvalue = resolveUpvalue(compiler.enclosing, name);
+    if(upvalue != -1) {
+        return addUpvalue(compiler, cast(ubyte)upvalue, false);
+    }
+
+    return -1;
+}
+
+private int addUpvalue(Compiler* compiler, ubyte index, bool isLocal)
+{
+    auto upvalueCount = compiler.fun.upvalueCount;
+
+    foreach(i, ref uv; compiler.upvalues[0 .. upvalueCount])
+    {
+        if(uv.index == index && uv.isLocal == isLocal)
+            return cast(int)i;
+    }
+
+    if(upvalueCount == ubyte.max + 1)
+    {
+        error("Too many closure variables in function.");
+        return 0;
+    }
+
+    compiler.upvalues[upvalueCount] =
+        Upvalue(
+                isLocal: isLocal,
+                index: index
+               );
+
+    return compiler.fun.upvalueCount++;
 }
 
 private void errorAtCurrent(const(char)[] message) {

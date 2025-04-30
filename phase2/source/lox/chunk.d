@@ -14,6 +14,8 @@ enum OpCode : ubyte
     GET_GLOBAL,
     DEFINE_GLOBAL,
     SET_GLOBAL,
+    GET_UPVALUE,
+    SET_UPVALUE,
     EQUAL,
     GREATER,
     LESS,
@@ -29,6 +31,7 @@ enum OpCode : ubyte
     LOOP,
     CALL,
     CLOSURE,
+    CLOSE_UPVALUE,
     RETURN,
 }
 

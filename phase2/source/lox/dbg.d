@@ -3,6 +3,7 @@ module lox.dbg;
 import lox.chunk;
 import lox.value;
 import lox.io;
+import lox.obj;
 
 void disassembleChunk(const ref Chunk chunk, string name)
 {
@@ -42,6 +43,10 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return constantInstruction("OP_GET_GLOBAL", chunk, offset);
         case SET_GLOBAL:
             return constantInstruction("OP_SET_GLOBAL", chunk, offset);
+        case GET_UPVALUE:
+            return byteInstruction("OP_GET_UPVALUE", chunk, offset);
+        case SET_UPVALUE:
+            return byteInstruction("OP_SET_UPVALUE", chunk, offset);
         case GET_LOCAL:
             return byteInstruction("OP_GET_LOCAL", chunk, offset);
         case SET_LOCAL:
@@ -82,7 +87,16 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             o.write(i`$("OP_CLOSURE".formatted("%-16s")) $(constant.formatted("%4d"))`);
             printValue(chunk.constants.values[constant]);
             o.writeln();
+
+            auto fun = chunk.constants.values[constant].extractFunction;
+            foreach(j; 0 .. fun.upvalueCount) {
+                int isLocal = chunk.code[offset++];
+                int index = chunk.code[offset++];
+                o.writeln(i`$((offset - 2).formatted("%04d"))      |                     $(isLocal ? "local" : "upvalue") $(index)`);
+            }
             return offset;
+        case CLOSE_UPVALUE:
+            return simpleInstruction("OP_CLOSE_UPVALUE", offset);
         case RETURN:
             return simpleInstruction("OP_RETURN", offset);
         default:
