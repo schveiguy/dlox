@@ -7,7 +7,7 @@ struct ObjFunction {
     int arity;
     int upvalueCount;
     Chunk chunk;
-    string name;
+    String* name;
 }
 
 struct ObjClosure {
@@ -29,7 +29,7 @@ alias NativeFn = Value function(Value[] args);
 
 struct ObjNative {
     NativeFn fun;
-    string name;
+    String* name;
 }
 
 T convParamTest(T, U)(U v) {
@@ -45,6 +45,7 @@ T convParam(T, U)(U v) {
         throw new Exception("Incompatible parameter types: '" ~ U.stringof ~ "' and '" ~ T.stringof ~ "'");
     else static if(is(U == ErrStr))
         assert(0, "ErrStr in arguments!");
+    else static if(is(U == String*)) return v.value.to!T;
     else static if(__traits(compiles, v.to!T)) return v.to!T;
     else throw new Exception("Incompatible parameter types: '" ~ U.stringof ~ "' and '" ~ T.stringof ~ "'");
 }
@@ -89,7 +90,7 @@ ObjNative* getNativeFn(alias symbol)() {
     {
         // initialize it
         result.fun = &wrapper;
-        result.name = __traits(identifier, symbol);
+        result.name = internString(__traits(identifier, symbol));
     }
 
     return &result;

@@ -26,7 +26,29 @@ struct ErrStr {
     string msg;
 }
 
-alias Value = SumType!(typeof(null), double, bool, string, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ErrStr);
+struct String {
+    string value;
+    StringRec* weakRef;
+    alias value this;
+    ~this() {
+        import lox.vm;
+        weakRef._refstr = 0;
+        vm.garbageStrings = true;
+    }
+}
+
+struct StringRec {
+    size_t _refstr; // obfuscated reference to a String
+    this(String* val) {
+        _refstr = ~cast(size_t)val;
+    }
+    String* str() {
+        return cast(String*)~_refstr;
+    }
+    bool isGarbage() => _refstr == 0;
+}
+
+alias Value = SumType!(typeof(null), double, bool, String*, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -67,6 +89,7 @@ void printValue(Value value) {
             (ObjNative* n)   { printNative(n); },
             (ObjClosure* c)  { printFunction(c.fun); },
             (ObjUpvalue* u)  { outStream.write("upvalue"); },
+            (String* s)      { outStream.write(s.value); },
             (x) { outStream.write(i"$(x)", false); }
     );
 }
@@ -110,7 +133,7 @@ Value addValues(Value v1, Value v2)
     }
 
     return match!(
-            (string s1, string s2) => Value(internString(s1 ~ s2)),
+            (String* s1, String* s2) => Value(internString(s1.value ~ s2.value)),
             numadd,
             (a, b) => Value(ErrStr("Operands must be two numbers or two strings."))
     )(v1, v2);
@@ -136,11 +159,11 @@ string getError(Value v)
     );
 }
 
-string extractString(Value v)
+String* extractString(Value v)
 {
-    // must be a string type
+    // must be a String type
     return v.match!(
-            (string s) => s,
+            (String* s) => s,
             x => assert(0, "Somehow tried to extract a string from a non string value.")
     );
 }
@@ -185,13 +208,36 @@ ObjClosure* extractClosure(Value v)
     );
 }
 
-string internString(string s)
+String* internString(string s)
 {
     import lox.vm;
+    if(vm.garbageStrings) {
+        vm.garbageStrings = false;
+        import core.memory;
+        // do not run any GC cycle while cleaning up this garbage
+        GC.disable();
+        scope(exit) GC.enable();
+        StringRec[string] newStrings;
+        foreach(k, v; vm.strings) {
+            if(!v.isGarbage)
+            {
+                auto str = v.str;
+                newStrings[k] = v;
+                // point at the new weak reference
+                str.weakRef = &newStrings[k];
+            }
+        }
+        vm.strings = newStrings;
+    }
+
+    assert(!vm.garbageStrings);
+
     if(auto interned = s in vm.strings)
         // already interned.
-        return *interned;
+        return interned.str;
     // intern it
-    vm.strings[s] = s;
-    return s;
+    auto obj = new String(s);
+    vm.strings[s] = StringRec(obj);
+    obj.weakRef = &vm.strings[s];
+    return obj;
 }

@@ -27,9 +27,10 @@ struct VM {
 
     Value[STACK_MAX] stack;
     Value* stackTop;
-    string[string] strings;
+    StringRec[string] strings;
+    bool garbageStrings;
     ObjUpvalue openUpvalues; // just the next pointer is used here.
-    Value[string] globals;
+    Value[String*] globals;
 
     InterpretResult run() {
         auto frame = &frames[vm.frameCount - 1];
@@ -153,7 +154,7 @@ struct VM {
                     break;
                 case DEFINE_GLOBAL:
                     auto nameVal = READ_CONSTANT();
-                    string name = nameVal.extractString();
+                    auto name = nameVal.extractString();
                     globals[name] = pop();
                     break;
                 case GET_LOCAL:
@@ -176,7 +177,7 @@ struct VM {
                     break;
                 case GET_GLOBAL:
                     auto nameVal = READ_CONSTANT();
-                    string name = nameVal.extractString();
+                    auto name = nameVal.extractString();
                     if(auto v = name in globals) {
                         push(*v);
                     } else {
@@ -187,7 +188,7 @@ struct VM {
                     break;
                 case SET_GLOBAL:
                     auto nameVal = READ_CONSTANT();
-                    string name = nameVal.extractString();
+                    auto name = nameVal.extractString();
                     if(auto v = name in globals) {
                         auto val = peek();
                         *v = val;
@@ -380,8 +381,7 @@ struct VM {
 
     private void defineNative(string name, ObjNative* value)
     {
-        internString(name); // always called with a literal.
-        globals[name] = Value(value);
+        globals[value.name] = Value(value);
     }
 }
 
