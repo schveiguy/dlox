@@ -19,6 +19,15 @@ struct ObjClosure {
     }
 }
 
+struct ObjClass {
+    String* name;
+}
+
+struct ObjInstance {
+    ObjClass* klass;
+    Value[String*] fields;
+}
+
 struct ObjUpvalue {
     Value* location;
     ObjUpvalue* next;

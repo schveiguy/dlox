@@ -182,7 +182,7 @@ struct VM {
                         push(*v);
                     } else {
                         import std.conv;
-                        runtimeError(i"Undefined variable '$(name)'".text);
+                        runtimeError(i"Undefined variable '$(name.value)'".text);
                         return InterpretResult.RUNTIME_ERROR;
                     }
                     break;
@@ -194,7 +194,7 @@ struct VM {
                         *v = val;
                     } else {
                         import std.conv;
-                        runtimeError(i"Undefined variable '$(name)'".text);
+                        runtimeError(i"Undefined variable '$(name.value)'".text);
                         return InterpretResult.RUNTIME_ERROR;
                     }
                     break;
@@ -222,25 +222,10 @@ struct VM {
                 case CALL:
                     auto argCount = READ_BYTE();
                     auto func = peek(argCount);
-                    with(CallableType) final switch(func.callableType) {
-                        case NotCallable:
-                            runtimeError("Can only call functions and classes.");
-                            return InterpretResult.RUNTIME_ERROR;
-                        case Closure:
-                            if(!callValue(func, argCount))
-                                return InterpretResult.RUNTIME_ERROR;
-                            frame = &frames[frameCount - 1];
-                            break;
-                        case Native:
-                            auto result = callNative(func, argCount);
-                            if(auto msg = result.getError()) {
-                                runtimeError(msg);
-                                return InterpretResult.RUNTIME_ERROR;
-                            }
-                            push(result);
-                            break;
-
+                    if(!callValue(func, argCount)) {
+                        return InterpretResult.RUNTIME_ERROR;
                     }
+                    frame = &frames[frameCount - 1];
                     break;
                 case CLOSURE:
                     ObjFunction* fun = READ_CONSTANT().extractFunction();
@@ -273,6 +258,10 @@ struct VM {
                     stackTop = frame.slots;
                     push(result);
                     frame = &frames[frameCount - 1];
+                    break;
+                case CLASS:
+                    auto n = READ_CONSTANT();
+                    push(Value(new ObjClass(n.extractString())));
                     break;
             }
         }
@@ -314,10 +303,16 @@ struct VM {
 
         resetStack();
     }
+
     private bool callValue(Value func, int argCount) {
-        auto fun = func.extractClosure();
-        assert(fun);
-        return call(fun, argCount);
+        // dispatch to a call function, if one is defined
+        import std.sumtype;
+        return func.match!(
+                (x) => call(x, argCount),
+                (x) {
+                    runtimeError("Can only call functions and classes.");
+                    return false;
+                    });
     }
 
     private ObjUpvalue* captureUpvalue(Value* local) {
@@ -368,15 +363,24 @@ struct VM {
         return true;
     }
 
-    private Value callNative(Value fun, int argCount)
+    private bool call(ObjNative* native, int argCount)
     {
-        auto native = fun.extractNative();
-        assert(native);
         // call with the given arguments
         auto argStart = stackTop - argCount;
         auto result = native.fun(argStart[0 .. argCount]);
         stackTop -= argCount + 1;
-        return result;
+        if(auto msg = result.getError()) {
+            runtimeError(msg);
+            return false;
+        }
+        push(result);
+        return true;
+    }
+
+    private bool call(ObjClass* klass, int argCount)
+    {
+        *(stackTop - argCount - 1) = new ObjInstance(klass);
+        return true;
     }
 
     private void defineNative(string name, ObjNative* value)

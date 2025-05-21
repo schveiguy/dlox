@@ -48,7 +48,7 @@ struct StringRec {
     bool isGarbage() => _refstr == 0;
 }
 
-alias Value = SumType!(typeof(null), double, bool, String*, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ErrStr);
+alias Value = SumType!(typeof(null), double, bool, String*, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ObjClass*, ObjInstance*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -74,13 +74,17 @@ void printValue(Value value) {
 
     static void printFunction(ObjFunction* f) {
         if(f.name.length > 0)
-            outStream.write(i"<fn $(f.name)>", false);
+            outStream.write(i"<fn $(f.name.value)>", false);
         else
             outStream.write(i"<script>", false);
     }
 
     static void printNative(ObjNative* f) {
-        outStream.write(i"<native $(f.name)>");
+        outStream.write(i"<native $(f.name.value)>");
+    }
+
+    static void printInstance(ObjInstance* i) {
+        outStream.write(i"$(i.klass.name.value) instance");
     }
 
     value.match!(
@@ -89,6 +93,8 @@ void printValue(Value value) {
             (ObjNative* n)   { printNative(n); },
             (ObjClosure* c)  { printFunction(c.fun); },
             (ObjUpvalue* u)  { outStream.write("upvalue"); },
+            (ObjClass* c)    { outStream.write(c.name.value); },
+            (ObjInstance* i) { printInstance(i); },
             (String* s)      { outStream.write(s.value); },
             (x) { outStream.write(i"$(x)", false); }
     );
@@ -168,42 +174,10 @@ String* extractString(Value v)
     );
 }
 
-enum CallableType {
-    NotCallable,
-    Closure,
-    Native,
-}
-
-CallableType callableType(Value v) {
-    with(CallableType) return v.match!(
-            (typeof(null)) => NotCallable,
-            (ObjNative *f) => Native,
-            (ObjClosure *f) => Closure,
-            (x) => NotCallable
-    );
-}
-
-
 ObjFunction* extractFunction(Value v)
 {
     return v.match!(
             (ObjFunction* f) => f,
-            (x) => null
-    );
-}
-
-ObjNative* extractNative(Value v)
-{
-    return v.match!(
-            (ObjNative* f) => f,
-            (x) => null
-    );
-}
-
-ObjClosure* extractClosure(Value v)
-{
-    return v.match!(
-            (ObjClosure* f) => f,
             (x) => null
     );
 }

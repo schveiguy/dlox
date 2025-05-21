@@ -229,7 +229,9 @@ private void expressionStatement() {
 }
 
 private void declaration() {
-    if(match(TokenType.FUN)) {
+    if (match(TokenType.CLASS)) {
+        classDeclaration();
+    } else if(match(TokenType.FUN)) {
         funDeclaration();
     } else if(match(TokenType.VAR)) {
         varDeclaration();
@@ -272,6 +274,18 @@ private void func(FunctionType type) {
         emitByte(uv.isLocal ? 1 : 0);
         emitByte(uv.index);
     }
+}
+
+private void classDeclaration() {
+    consume(TokenType.IDENTIFIER, "Expect class name.");
+    ubyte nameConstant = identifierConstant(&parser.previous);
+    declareVariable();
+
+    emitBytes(OpCode.CLASS, nameConstant);
+    defineVariable(nameConstant);
+
+    consume(TokenType.LEFT_BRACE, "Expect '{' before class body.");
+    consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.");
 }
 
 private void varDeclaration() {

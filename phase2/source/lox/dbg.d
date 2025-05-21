@@ -99,6 +99,8 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_CLOSE_UPVALUE", offset);
         case RETURN:
             return simpleInstruction("OP_RETURN", offset);
+        case CLASS:
+            return constantInstruction("OP_CLASS", chunk, offset);
         default:
             o.writeln(i"Unknown opcode $(instruction)");
             return offset + 1;

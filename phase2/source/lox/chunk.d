@@ -33,6 +33,7 @@ enum OpCode : ubyte
     CLOSURE,
     CLOSE_UPVALUE,
     RETURN,
+    CLASS,
 }
 
 struct Chunk
