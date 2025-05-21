@@ -187,6 +187,18 @@ private void call(bool) {
     emitBytes(OpCode.CALL, argCount);
 }
 
+private void dot(bool canAssign) {
+    consume(TokenType.IDENTIFIER, "Expect property name after '.'.");
+    ubyte name = identifierConstant(&parser.previous);
+
+    if (canAssign && match(TokenType.EQUAL)) {
+        expression();
+        emitBytes(OpCode.SET_PROPERTY, name);
+    } else {
+        emitBytes(OpCode.GET_PROPERTY, name);
+    }
+}
+
 private ubyte argumentList() {
     ubyte argCount = 0;
     if (!check(TokenType.RIGHT_PAREN)) {
@@ -601,7 +613,7 @@ ParseRule[] rules = [
   TokenType.LEFT_BRACE:    ParseRule(null,      null,    Precedence.NONE), 
   TokenType.RIGHT_BRACE:   ParseRule(null,      null,    Precedence.NONE),
   TokenType.COMMA:         ParseRule(null,      null,    Precedence.NONE),
-  TokenType.DOT:           ParseRule(null,      null,    Precedence.NONE),
+  TokenType.DOT:           ParseRule(null,      &dot,    Precedence.CALL),
   TokenType.MINUS:         ParseRule(&unary,    &binary, Precedence.TERM),
   TokenType.PLUS:          ParseRule(null,      &binary, Precedence.TERM),
   TokenType.SEMICOLON:     ParseRule(null,      null,    Precedence.NONE),

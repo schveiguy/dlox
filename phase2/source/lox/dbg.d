@@ -57,6 +57,10 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return jumpInstruction("OP_JUMP", chunk, 1, offset);
         case LOOP:
             return jumpInstruction("OP_LOOP", chunk, -1, offset);
+        case GET_PROPERTY:
+            return constantInstruction("OP_GET_PROPERTY", chunk, offset);
+        case SET_PROPERTY:
+            return constantInstruction("OP_SET_PROPERTY", chunk, offset);
         case EQUAL:
             return simpleInstruction("OP_EQUAL", offset);
         case GREATER:

@@ -182,6 +182,14 @@ ObjFunction* extractFunction(Value v)
     );
 }
 
+ObjInstance* extractInstance(Value v)
+{
+    return v.match!(
+            (ObjInstance* i) => i,
+            (x) => null
+    );
+}
+
 String* internString(string s)
 {
     import lox.vm;

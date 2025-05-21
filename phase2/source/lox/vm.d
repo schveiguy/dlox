@@ -96,6 +96,37 @@ struct VM {
                 case FALSE:
                     push(Value(false));
                     break;
+                case GET_PROPERTY:
+                    auto instance = peek().extractInstance;
+                    if(!instance) {
+                        runtimeError("Only instances have properties.");
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+
+                    auto id = READ_CONSTANT().extractString;
+                    auto v = id in instance.fields;
+                    if (v) {
+                        pop(); // instance
+                        push(*v);
+                        break;
+                    }
+
+                    import std.conv;
+                    runtimeError(i"Undefined property '$(id.value)'".text);
+                    return InterpretResult.RUNTIME_ERROR;
+                case SET_PROPERTY:
+                    auto instance = peek(1).extractInstance;
+                    if(!instance) {
+                        runtimeError("Only instances have fields.");
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+
+                    auto id = READ_CONSTANT().extractString;
+                    auto v = pop();
+                    instance.fields[id] = v;
+                    pop(); // instance
+                    push(v);
+                    break;
                 case EQUAL:
                     auto b = pop();
                     auto a = pop();
