@@ -105,6 +105,8 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_RETURN", offset);
         case CLASS:
             return constantInstruction("OP_CLASS", chunk, offset);
+        case METHOD:
+            return constantInstruction("OP_METHOD", chunk, offset);
         default:
             o.writeln(i"Unknown opcode $(instruction)");
             return offset + 1;
@@ -124,6 +126,16 @@ private int constantInstruction(string name, ref const Chunk chunk, int offset) 
     printValue(chunk.constants.values[constant]);
     o.writeln("'");
     return offset + 2;
+}
+
+private int invokeInstruction(string name, ref const Chunk chunk, int offset) {
+    auto o = outStream;
+    auto constant = chunk.code[offset + 1];
+    auto argCount = chunk.code[offset + 2];
+    o.write(i`$(name.formatted("%-16s")) ($(argCount) args) $(constant.formatted("%4d")) '`, false);
+    printValue(chunk.constants.values[constant]);
+    o.writeln("'");
+    return offset + 3;
 }
 
 private int byteInstruction(string name, ref const Chunk chunk, int offset) {

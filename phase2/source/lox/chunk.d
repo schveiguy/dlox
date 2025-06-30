@@ -32,10 +32,12 @@ enum OpCode : ubyte
     JUMP,
     LOOP,
     CALL,
+    INVOKE,
     CLOSURE,
     CLOSE_UPVALUE,
     RETURN,
     CLASS,
+    METHOD,
 }
 
 struct Chunk

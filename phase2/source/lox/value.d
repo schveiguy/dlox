@@ -48,7 +48,7 @@ struct StringRec {
     bool isGarbage() => _refstr == 0;
 }
 
-alias Value = SumType!(typeof(null), double, bool, String*, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ObjClass*, ObjInstance*, ErrStr);
+alias Value = SumType!(typeof(null), double, bool, String*, ObjFunction*, ObjNative*, ObjClosure*, ObjUpvalue*, ObjClass*, ObjInstance*, ObjBoundMethod*, ErrStr);
 
 struct ValueArray {
     Value[] _storage;
@@ -73,7 +73,7 @@ void printValue(Value value) {
     import lox.io;
 
     static void printFunction(ObjFunction* f) {
-        if(f.name.length > 0)
+        if(f.name !is null && f.name.value.length > 0)
             outStream.write(i"<fn $(f.name.value)>", false);
         else
             outStream.write(i"<script>", false);
@@ -88,14 +88,15 @@ void printValue(Value value) {
     }
 
     value.match!(
-            (typeof(null) n) { outStream.write("nil"); },
-            (ObjFunction* f) { printFunction(f); },
-            (ObjNative* n)   { printNative(n); },
-            (ObjClosure* c)  { printFunction(c.fun); },
-            (ObjUpvalue* u)  { outStream.write("upvalue"); },
-            (ObjClass* c)    { outStream.write(c.name.value); },
-            (ObjInstance* i) { printInstance(i); },
-            (String* s)      { outStream.write(s.value); },
+            (typeof(null) n)    { outStream.write("nil"); },
+            (ObjFunction* f)    { printFunction(f); },
+            (ObjNative* n)      { printNative(n); },
+            (ObjClosure* c)     { printFunction(c.fun); },
+            (ObjUpvalue* u)     { outStream.write("upvalue"); },
+            (ObjBoundMethod* m) { printFunction(m.method.fun); },
+            (ObjClass* c)       { outStream.write(c.name.value); },
+            (ObjInstance* i)    { printInstance(i); },
+            (String* s)         { outStream.write(s.value); },
             (x) { outStream.write(i"$(x)", false); }
     );
 }
@@ -182,10 +183,26 @@ ObjFunction* extractFunction(Value v)
     );
 }
 
+ObjClosure* extractClosure(Value v)
+{
+    return v.match!(
+            (ObjClosure* f) => f,
+            (x) => null
+    );
+}
+
 ObjInstance* extractInstance(Value v)
 {
     return v.match!(
             (ObjInstance* i) => i,
+            (x) => null
+    );
+}
+
+ObjClass* extractClass(Value v)
+{
+    return v.match!(
+            (ObjClass* i) => i,
             (x) => null
     );
 }

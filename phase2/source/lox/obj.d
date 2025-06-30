@@ -21,11 +21,17 @@ struct ObjClosure {
 
 struct ObjClass {
     String* name;
+    Value[String*] methods;
 }
 
 struct ObjInstance {
     ObjClass* klass;
     Value[String*] fields;
+}
+
+struct ObjBoundMethod {
+    Value receiver;
+    ObjClosure* method;
 }
 
 struct ObjUpvalue {

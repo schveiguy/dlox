@@ -28,6 +28,7 @@ struct VM {
     Value[STACK_MAX] stack;
     Value* stackTop;
     StringRec[string] strings;
+    String* initString;
     bool garbageStrings;
     ObjUpvalue openUpvalues; // just the next pointer is used here.
     Value[String*] globals;
@@ -111,9 +112,10 @@ struct VM {
                         break;
                     }
 
-                    import std.conv;
-                    runtimeError(i"Undefined property '$(id.value)'".text);
-                    return InterpretResult.RUNTIME_ERROR;
+                    if (!bindMethod(instance.klass, id)) {
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    break;
                 case SET_PROPERTY:
                     auto instance = peek(1).extractInstance;
                     if(!instance) {
@@ -258,6 +260,15 @@ struct VM {
                     }
                     frame = &frames[frameCount - 1];
                     break;
+                case INVOKE:
+                    auto methodVal = READ_CONSTANT();
+                    auto methodName = methodVal.extractString();
+                    int argCount = READ_BYTE();
+                    if (!invoke(methodName, argCount)) {
+                        return  InterpretResult.RUNTIME_ERROR;
+                    }
+                    frame = &frames[frameCount - 1];
+                    break;
                 case CLOSURE:
                     ObjFunction* fun = READ_CONSTANT().extractFunction();
                     auto closure = new ObjClosure(fun);
@@ -294,8 +305,26 @@ struct VM {
                     auto n = READ_CONSTANT();
                     push(Value(new ObjClass(n.extractString())));
                     break;
+                case METHOD:
+                    auto n = READ_CONSTANT();
+                    defineMethod(n.extractString());
+                    break;
             }
         }
+    }
+
+    private bool bindMethod(ObjClass* klass, String* name) {
+        auto method = name in klass.methods;
+        if (!method) {
+            import std.conv;
+            runtimeError(i"Undefined  property '$(name.value)'.".text);
+            return false;
+        }
+
+        auto bound = new ObjBoundMethod(pop(), (*method).extractClosure());
+
+        push(Value(bound));
+        return true;
     }
 
     void resetStack() {
@@ -346,6 +375,32 @@ struct VM {
                     });
     }
 
+    private bool invoke(String* name, int argCount) {
+        auto receiver = peek(argCount);
+        auto instance = receiver.extractInstance();
+        if (!instance) {
+            runtimeError("Only instances have methods.");
+            return false;
+        }
+
+        if (auto f = name in instance.fields) {
+            vm.stackTop[-argCount - 1] = *f;
+            return callValue(*f, argCount);
+        }
+
+        return invokeFromClass(instance.klass, name, argCount);
+    }
+
+    private bool invokeFromClass(ObjClass* klass, String* name, int argCount) {
+        if (auto method = name in klass.methods) {
+            return call((*method).extractClosure, argCount);
+        }
+
+        import std.conv;
+        runtimeError(i"Undefined property '$(name.value)'".text);
+        return false;
+    }
+
     private ObjUpvalue* captureUpvalue(Value* local) {
         ObjUpvalue* prev = &openUpvalues;
         auto upvalue = prev.next;
@@ -373,6 +428,13 @@ struct VM {
             cur = cur.next;
         }
         openUpvalues.next = cur;
+    }
+
+    private void defineMethod(String* name)
+    {
+        auto method = pop();
+        ObjClass* klass = peek().extractClass();
+        klass.methods[name] = method;
     }
 
     private bool call(ObjClosure* closure, int argCount)
@@ -411,7 +473,20 @@ struct VM {
     private bool call(ObjClass* klass, int argCount)
     {
         *(stackTop - argCount - 1) = new ObjInstance(klass);
+        if (auto initializer = initString in klass.methods) {
+            return call((*initializer).extractClosure(), argCount);
+        }
+        else if (argCount != 0) {
+            import std.conv;
+            runtimeError(i"Expected 0 arguments but got $(argCount)".text);
+            return false;
+        }
         return true;
+    }
+
+    private bool call(ObjBoundMethod* bound, int argCount) {
+        *(stackTop - argCount - 1) = bound.receiver;
+        return call(bound.method, argCount);
     }
 
     private void defineNative(string name, ObjNative* value)
@@ -430,6 +505,7 @@ private double nativeClock() {
 void initVM() {
     import core.stdc.math : sin;
     vm.resetStack();
+    vm.initString = internString("init");
     vm.defineNative("clock", getNativeFn!nativeClock);
     vm.defineNative("sin", getNativeFn!sin);
 }

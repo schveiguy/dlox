@@ -15,6 +15,8 @@ struct Parser {
 
 enum FunctionType {
     FUNCTION,
+    INITIALIZER,
+    METHOD,
     SCRIPT
 }
 
@@ -32,6 +34,10 @@ struct Compiler {
     int localCount;
     Upvalue[ubyte.max + 1] upvalues;
     int scopeDepth;
+}
+
+struct ClassCompiler {
+    ClassCompiler* enclosing;
 }
 
 struct Local {
@@ -64,6 +70,7 @@ struct ParseRule {
 
 Parser parser;
 Compiler* current;
+ClassCompiler* currentClass;
 
 private void initCompiler(Compiler * compiler, FunctionType type) {
     compiler.enclosing = current;
@@ -79,8 +86,10 @@ private void initCompiler(Compiler * compiler, FunctionType type) {
 
     Local* local = &current.locals[current.localCount++];
     local.depth = 0;
-    // the name lexeme is null, and none of the other fields of the name are important.
-    local.name = Token.init;
+    if (type != FunctionType.FUNCTION)
+        local.name = Token(TokenType.IDENTIFIER, "this");
+    else
+        local.name = Token.init;
 }
 
 private Chunk* currentChunk() {
@@ -132,7 +141,12 @@ private void emitBytes(ubyte b1, ubyte b2) {
 }
 
 private void emitReturn() {
-    emitByte(OpCode.NIL);
+    if (current.type == FunctionType.INITIALIZER) {
+        emitBytes(OpCode.GET_LOCAL, 0);
+    }
+    else {
+        emitByte(OpCode.NIL);
+    }
     emitByte(OpCode.RETURN);
 }
 
@@ -156,7 +170,10 @@ private ObjFunction* endCompiler() {
     debug(PRINT_CODE) {
         import lox.dbg;
         if(!parser.hadError)
-            disassembleChunk(*currentChunk(), fun.name.length > 0 ? fun.name : "<script>");
+        {
+            auto n = fun.name ? fun.name.value : "";
+            disassembleChunk(*currentChunk(), n.length > 0 ? n : "<script>");
+        }
     }
     current = current.enclosing;
     return fun;
@@ -194,6 +211,10 @@ private void dot(bool canAssign) {
     if (canAssign && match(TokenType.EQUAL)) {
         expression();
         emitBytes(OpCode.SET_PROPERTY, name);
+    } else if (match(TokenType.LEFT_PAREN)) {
+        ubyte argCount = argumentList();
+        emitBytes(OpCode.INVOKE, name);
+        emitByte(argCount);
     } else {
         emitBytes(OpCode.GET_PROPERTY, name);
     }
@@ -290,14 +311,38 @@ private void func(FunctionType type) {
 
 private void classDeclaration() {
     consume(TokenType.IDENTIFIER, "Expect class name.");
+    auto className = parser.previous;
     ubyte nameConstant = identifierConstant(&parser.previous);
     declareVariable();
 
     emitBytes(OpCode.CLASS, nameConstant);
     defineVariable(nameConstant);
 
+    ClassCompiler classCompiler;
+    classCompiler.enclosing = currentClass;
+    currentClass = &classCompiler;
+
+    namedVariable(className, false);
     consume(TokenType.LEFT_BRACE, "Expect '{' before class body.");
+    while (!check(TokenType.RIGHT_BRACE) && !check(TokenType.EOF)) {
+        method();
+    }
     consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.");
+    emitByte(OpCode.POP);
+
+    currentClass = currentClass.enclosing;
+}
+
+private void method() {
+    consume(TokenType.IDENTIFIER, "Expect method name.");
+    ubyte constant = identifierConstant(&parser.previous);
+
+    FunctionType type = FunctionType.METHOD;
+    if (parser.previous.lexeme == "init") {
+        type = FunctionType.INITIALIZER;
+    }
+    func(type);
+    emitBytes(OpCode.METHOD, constant);
 }
 
 private void varDeclaration() {
@@ -441,6 +486,10 @@ private void returnStatement() {
         emitReturn();
         return;
     }
+    else if (current.type == FunctionType.INITIALIZER) {
+        error("Can't return a value from an initializer.");
+    }
+
     expression();
     consume(TokenType.SEMICOLON, "Expect ';' after return value.");
     emitByte(OpCode.RETURN);
@@ -642,7 +691,7 @@ ParseRule[] rules = [
   TokenType.PRINT:         ParseRule(null,      null,    Precedence.NONE),
   TokenType.RETURN:        ParseRule(null,      null,    Precedence.NONE),
   TokenType.SUPER:         ParseRule(null,      null,    Precedence.NONE),
-  TokenType.THIS:          ParseRule(null,      null,    Precedence.NONE),
+  TokenType.THIS:          ParseRule(&this_,    null,    Precedence.NONE),
   TokenType.TRUE:          ParseRule(&literal,  null,    Precedence.NONE),
   TokenType.VAR:           ParseRule(null,      null,    Precedence.NONE),
   TokenType.WHILE:         ParseRule(null,      null,    Precedence.NONE),
@@ -689,6 +738,15 @@ private void str(bool) {
 
 private void variable(bool canAssign) {
     namedVariable(parser.previous, canAssign);
+}
+
+private void this_(bool canAssign) {
+    if (currentClass is null) {
+        error("Can't use 'this' outside of a class.");
+        return;
+    }
+
+    variable(false);
 }
 
 private void namedVariable(Token name, bool canAssign) {
