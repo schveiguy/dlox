@@ -38,6 +38,7 @@ struct Compiler {
 
 struct ClassCompiler {
     ClassCompiler* enclosing;
+    bool hasSuperclass;
 }
 
 struct Local {
@@ -87,7 +88,7 @@ private void initCompiler(Compiler * compiler, FunctionType type) {
     Local* local = &current.locals[current.localCount++];
     local.depth = 0;
     if (type != FunctionType.FUNCTION)
-        local.name = Token(TokenType.IDENTIFIER, "this");
+        local.name = thisToken;
     else
         local.name = Token.init;
 }
@@ -322,6 +323,23 @@ private void classDeclaration() {
     classCompiler.enclosing = currentClass;
     currentClass = &classCompiler;
 
+    if (match(TokenType.LESS)) {
+        consume(TokenType.IDENTIFIER, "Expect superclass name.");
+        variable(false);
+
+        if(className.lexeme == parser.previous.lexeme) {
+            error("A class can't inherit from itself.");
+        }
+
+        beginScope();
+        addLocal(superToken);
+        defineVariable(0);
+
+        namedVariable(className, false);
+        emitByte(OpCode.INHERIT);
+        classCompiler.hasSuperclass = true;
+    }
+
     namedVariable(className, false);
     consume(TokenType.LEFT_BRACE, "Expect '{' before class body.");
     while (!check(TokenType.RIGHT_BRACE) && !check(TokenType.EOF)) {
@@ -329,6 +347,10 @@ private void classDeclaration() {
     }
     consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.");
     emitByte(OpCode.POP);
+
+    if (classCompiler.hasSuperclass) {
+        endScope();
+    }
 
     currentClass = currentClass.enclosing;
 }
@@ -690,7 +712,7 @@ ParseRule[] rules = [
   TokenType.OR:            ParseRule(null,      &or_,    Precedence.OR),
   TokenType.PRINT:         ParseRule(null,      null,    Precedence.NONE),
   TokenType.RETURN:        ParseRule(null,      null,    Precedence.NONE),
-  TokenType.SUPER:         ParseRule(null,      null,    Precedence.NONE),
+  TokenType.SUPER:         ParseRule(&super_,   null,    Precedence.NONE),
   TokenType.THIS:          ParseRule(&this_,    null,    Precedence.NONE),
   TokenType.TRUE:          ParseRule(&literal,  null,    Precedence.NONE),
   TokenType.VAR:           ParseRule(null,      null,    Precedence.NONE),
@@ -738,6 +760,29 @@ private void str(bool) {
 
 private void variable(bool canAssign) {
     namedVariable(parser.previous, canAssign);
+}
+
+private void super_(bool canAssign) {
+    if (currentClass is null) {
+        error("Can't use 'super' outside of a class.");
+    } else if (!currentClass.hasSuperclass) {
+        error("Can't use 'super' in a class with no superclass.");
+    }
+
+    consume(TokenType.DOT, "Expect '.' after 'super'.");
+    consume(TokenType.IDENTIFIER, "Expect superclass method name.");
+    ubyte name = identifierConstant(&parser.previous);
+
+    namedVariable(thisToken, false);
+    if (match(TokenType.LEFT_PAREN)) {
+        ubyte argCount = argumentList();
+        namedVariable(superToken, false);
+        emitBytes(OpCode.SUPER_INVOKE, name);
+        emitByte(argCount);
+    } else {
+        namedVariable(superToken, false);
+        emitBytes(OpCode.GET_SUPER, name);
+    }
 }
 
 private void this_(bool canAssign) {

@@ -18,6 +18,7 @@ enum OpCode : ubyte
     SET_UPVALUE,
     GET_PROPERTY,
     SET_PROPERTY,
+    GET_SUPER,
     EQUAL,
     GREATER,
     LESS,
@@ -33,10 +34,12 @@ enum OpCode : ubyte
     LOOP,
     CALL,
     INVOKE,
+    SUPER_INVOKE,
     CLOSURE,
     CLOSE_UPVALUE,
     RETURN,
     CLASS,
+    INHERIT,
     METHOD,
 }
 

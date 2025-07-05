@@ -129,6 +129,14 @@ struct VM {
                     pop(); // instance
                     push(v);
                     break;
+                case GET_SUPER:
+                    auto nameVal = READ_CONSTANT();
+                    auto name = nameVal.extractString();
+                    auto superclass = pop().extractClass();
+                    if (!bindMethod(superclass, name)) {
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    break;
                 case EQUAL:
                     auto b = pop();
                     auto a = pop();
@@ -269,6 +277,16 @@ struct VM {
                     }
                     frame = &frames[frameCount - 1];
                     break;
+                case SUPER_INVOKE:
+                    auto methodVal = READ_CONSTANT();
+                    auto methodName = methodVal.extractString();
+                    int argCount = READ_BYTE();
+                    auto superclass = pop().extractClass();
+                    if (!invokeFromClass(superclass, methodName, argCount)) {
+                        return  InterpretResult.RUNTIME_ERROR;
+                    }
+                    frame = &frames[frameCount - 1];
+                    break;
                 case CLOSURE:
                     ObjFunction* fun = READ_CONSTANT().extractFunction();
                     auto closure = new ObjClosure(fun);
@@ -304,6 +322,18 @@ struct VM {
                 case CLASS:
                     auto n = READ_CONSTANT();
                     push(Value(new ObjClass(n.extractString())));
+                    break;
+                case INHERIT:
+                    auto superclass = peek(1).extractClass();
+                    if(!superclass) {
+                        runtimeError("Superclass must be a class.");
+                        return InterpretResult.RUNTIME_ERROR;
+                    }
+                    auto subclass = peek().extractClass();
+                    foreach(n, m; superclass.methods) {
+                        subclass.methods[n] = m;
+                    }
+                    pop(); // Subclass.
                     break;
                 case METHOD:
                     auto n = READ_CONSTANT();

@@ -29,6 +29,9 @@ struct Token
     int line;
 }
 
+enum superToken = Token(type: TokenType.IDENTIFIER, lexeme: "super");
+enum thisToken = Token(type: TokenType.IDENTIFIER, lexeme: "this");
+
 struct Scanner
 {
     const(char)* start;

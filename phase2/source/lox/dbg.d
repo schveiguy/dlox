@@ -61,6 +61,8 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return constantInstruction("OP_GET_PROPERTY", chunk, offset);
         case SET_PROPERTY:
             return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+        case GET_SUPER:
+            return constantInstruction("OP_GET_SUPER", chunk, offset);
         case EQUAL:
             return simpleInstruction("OP_EQUAL", offset);
         case GREATER:
@@ -85,6 +87,10 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_POP", offset);
         case CALL:
             return byteInstruction("OP_CALL", chunk, offset);
+        case INVOKE:
+            return invokeInstruction("OP_INVOKE", chunk, offset);
+        case SUPER_INVOKE:
+            return invokeInstruction("OP_SUPER_INVOKE", chunk, offset);
         case CLOSURE:
             ++offset;
             ubyte constant = chunk.code[offset++];
@@ -105,6 +111,8 @@ int disassembleInstruction(const ref Chunk chunk, int offset)
             return simpleInstruction("OP_RETURN", offset);
         case CLASS:
             return constantInstruction("OP_CLASS", chunk, offset);
+        case INHERIT:
+            return simpleInstruction("OP_INHERIT", offset);
         case METHOD:
             return constantInstruction("OP_METHOD", chunk, offset);
         default:
